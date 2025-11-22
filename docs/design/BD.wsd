@@ -1,0 +1,175 @@
+@startuml
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+title Milkwarden — Data Model (ER)
+
+' ==== Справочники и орг. сущности ====
+class Farm {
+  +farm_id: UUID
+  name: String
+  location: String
+}
+
+class Animal {
+  +animal_id: UUID
+  farm_id: UUID
+  visual_tag: String
+  breed: String
+  birth_date: Date
+  notes: Text
+}
+
+class RfidTag {
+  +rfid_id: UUID
+  animal_id: UUID
+  epc: String
+  standard: String  'ISO18000-6C
+  active: Boolean
+}
+
+Farm "1" -- "0..*" Animal
+Animal "1" -- "0..*" RfidTag
+
+' ==== Устройства и сенсоры ====
+class Device {
+  +device_id: UUID
+  farm_id: UUID
+  kind: String   'gateway, scale_node, rfid_node, vacuum_ctrl
+  model: String
+  fw_version: String
+  status: String 'online/offline
+}
+
+class SensorType {
+  +sensor_type_id: Int
+  name: String       'vacuum, flow, weight, milk_temp, conductivity...
+  default_unit: String 'kPa, L/min, kg, °C, mS/cm
+  value_kind: String 'numeric/categorical/vector/blob
+}
+
+class Sensor {
+  +sensor_id: UUID
+  device_id: UUID
+  sensor_type_id: Int
+  channel: String     'e.g. A0, I2C-0x3C, UART1
+  location: String    'cluster, bucket, line, ambient
+  calibration_id: UUID
+  active: Boolean
+}
+
+Device "1" -- "0..*" Sensor
+SensorType "1" -- "0..*" Sensor
+
+class Calibration {
+  +calibration_id: UUID
+  sensor_id: UUID
+  method: String   '2pt, multipoint, factory, lab
+  date: DateTime
+  parameters: JSON
+  by: String
+}
+
+Sensor "1" -- "0..*" Calibration
+
+' ==== Сессии доения и контекст ====
+class MilkingSession {
+  +session_id: UUID
+  farm_id: UUID
+  animal_id: UUID
+  device_id: UUID
+  start_time: DateTime
+  end_time: DateTime
+  operator: String
+  outcome: String 'ok/aborted/error
+  notes: Text
+}
+
+Farm "1" -- "0..*" MilkingSession
+Animal "1" -- "0..*" MilkingSession
+Device "1" -- "0..*" MilkingSession
+
+' ==== Измерения (таймсерии) ====
+class Measurement {
+  +measurement_id: UUID
+  sensor_id: UUID
+  session_id: UUID
+  ts: DateTime
+  value_num: Double
+  value_text: String
+  unit: String
+  quality: String 'ok, suspect, missing
+  meta: JSON
+}
+
+Sensor "1" -- "0..*" Measurement
+MilkingSession "1" -- "0..*" Measurement
+
+' ==== События ====
+class Event {
+  +event_id: UUID
+  device_id: UUID
+  session_id: UUID
+  ts: DateTime
+  type: String   'rfid_read, alarm, start, stop
+  severity: String 'info/warn/error
+  payload: JSON
+}
+
+Device "1" -- "0..*" Event
+MilkingSession "1" -- "0..*" Event
+
+' ==== Образцы (лаборатория / офлайн) ====
+class Sample {
+  +sample_id: UUID
+  session_id: UUID
+  animal_id: UUID
+  ts: DateTime
+  kind: String   'milk_lab, swab, etc.
+  data: JSON     'fat/protein/lactose, SCC, etc.
+  lab_ref: String
+}
+
+MilkingSession "1" -- "0..*" Sample
+Animal "1" -- "0..*" Sample
+
+' ==== Каталог метрик и атрибутов ====
+class Metric {
+  +metric_id: Int
+  name: String       'total_milk_L, peak_flow, vacuum_std
+  unit: String
+  formula: String    'computed spec or ref
+  category: String   'milk, vacuum, env, animal
+}
+
+class SessionMetric {
+  +session_metric_id: UUID
+  session_id: UUID
+  metric_id: Int
+  value: Double
+  unit: String
+  meta: JSON
+}
+
+MilkingSession "1" -- "0..*" SessionMetric
+Metric "1" -- "0..*" SessionMetric
+
+class AttributeDef {
+  +attr_id: Int
+  entity: String   'Animal/Device/Session/Sensor
+  name: String
+  type: String     'text/number/date/bool/json
+}
+
+class AttributeVal {
+  +attr_val_id: UUID
+  attr_id: Int
+  entity_id: UUID
+  value_text: String
+  value_num: Double
+  value_date: DateTime
+  value_json: JSON
+}
+
+AttributeDef "1" -- "0..*" AttributeVal
+
+@enduml

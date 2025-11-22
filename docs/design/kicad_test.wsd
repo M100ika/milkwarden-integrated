@@ -1,0 +1,117 @@
+@startuml
+title Узел AD7797 + тензодатчик + изоляция SPI
+
+skinparam componentStyle rectangle
+skinparam rectangle {
+  RoundCorner 10
+  Padding 8
+}
+skinparam linetype ortho
+skinparam defaultFontName Arial
+
+'----------------------------
+' Тензодатчик и разъём
+'----------------------------
+package "Тензодатчик" {
+  component "J1\nConn_01x06\nLOAD_CELL" as J1
+  note right of J1
+    1: +EXC
+    2: -EXC
+    3: +SIG
+    4: -SIG
+    5: SHIELD
+    6: NC/RES
+  end note
+}
+
+'----------------------------
+' Входной фильтр
+'----------------------------
+package "Фильтр входа" {
+  rectangle "R1 1k\nмежду +SIG и AIN1+" as R1
+  rectangle "R2 1k\nмежду -SIG и AIN1-" as R2
+  rectangle "C1 100n\nAIN1+–GNDA" as C1
+  rectangle "C2 100n\nAIN1-–GNDA" as C2
+  rectangle "C3 10–100n\nмежду AIN1+ и AIN1-" as C3
+}
+
+J1 -down-> R1 : +SIG
+J1 -down-> R2 : -SIG
+
+R1 -down-> C1 : AIN1+
+R2 -down-> C2 : AIN1-
+C1 --> [GNDA]
+C2 --> [GNDA]
+C3 -down-> R1
+C3 -down-> R2
+
+'----------------------------
+' AD7797
+'----------------------------
+node "U1\nAD7797BRUZ\n24-бит АЦП" as U1 {
+  rectangle "AIN1+\nAIN1-" as AIN
+  rectangle "REFIN+\nREFIN-" as REF
+  rectangle "SCLK_A\nDIN_A\nDOUT/RDY_A\nCS_A" as SPI_A
+  rectangle "AVDD/DVDD = +3V3_A\nAGND/DGND = GNDA" as PWR_A
+}
+
+AIN -up-> R1
+AIN -up-> R2
+
+J1 -right-> REF : +EXC → REFIN+\n-EXC → REFIN-
+  
+'----------------------------
+' Изолятор SPI
+'----------------------------
+package "Гальваническая развязка SPI\nU2 ADuM1401" {
+  node "U2\nADuM1401" as U2 {
+    rectangle "SCLK_MCU → SCLK_A\nMOSI_MCU → DIN_A\nCS_MCU → CS_A\nMISO_A → MISO_MCU" as CH
+    rectangle "VDD1 = +3V3\nGND1 = GND" as P1
+    rectangle "VDD2 = +3V3_A\nGND2 = GNDA" as P2
+  }
+}
+
+SPI_A -right-> U2 : SCLK_A, DIN_A, DOUT/RDY_A, CS_A
+
+'----------------------------
+' Разъём к MCU
+'----------------------------
+package "К микроконтроллеру" {
+  component "J2\nConn_01x06\nSPI_MCU" as J2
+  note right of J2
+    1: +3V3
+    2: GND
+    3: SPI_SCLK_MCU
+    4: SPI_MOSI_MCU
+    5: SPI_MISO_MCU
+    6: SPI_CS_MCU
+  end note
+}
+
+J2 -left-> U2 : SPI_SCLK_MCU,\nSPI_MOSI_MCU,\nSPI_MISO_MCU,\nSPI_CS_MCU,\n+3V3, GND
+
+'----------------------------
+' Питание изолированной стороны
+'----------------------------
+package "Питание изолированной части" {
+  component "J3\nConn_01x02\n+5V_ISO / GNDA" as J3
+  node "U3\nLDO 3.3V\nAMS1117-3.3" as U3
+  rectangle "Cin 10µ\nCout 10µ\n+ 100n керамика" as Cdec
+  rectangle "D1 TVS/Зенер\nмежду +5V_ISO и GNDA" as D1
+}
+
+J3 -down-> U3 : +5V_ISO
+J3 --> [GNDA]
+U3 -down-> U1 : +3V3_A
+U3 -right-> U2 : +3V3_A (VDD2)
+Cdec -down-> U3
+D1 -down-> J3
+
+'----------------------------
+' Экранировка
+'----------------------------
+note bottom of J1
+  SHIELD → корпус/земля\nчерез R 100Ω или C 10n\nк GNDA
+end note
+
+@enduml

@@ -1,0 +1,59 @@
+@startuml
+skinparam shadowing false
+skinparam rectangle {
+  BorderColor black
+  RoundCorner 10
+}
+left to right direction
+title Milkwarden Mobile — Корпус (вид сверху, условные размеры)
+
+rectangle "Корпус\n1000×600 мм" as BODY {
+  rectangle "Платформа весов\n(для ведра)" as SCALE
+  rectangle "Отсек пневмосистемы\n(вакуумная помпа,\nресивер, пульсатор,\nрегулятор)" as PNEUMO
+  rectangle "Коробка контроллера\n(STM/RPi, PSU, АКБ)" as CTRL
+  
+  rectangle "Колёсная база" as WHEELS 
+  rectangle "Левое колесо Ø200" as W1
+  rectangle "Правое колесо Ø200" as W2
+  rectangle "Опорные ролики Ø75\n(перед/зад)" as CAST
+}
+
+' Правильное размещение элементов
+BODY -[hidden]-> SCALE
+BODY -[hidden]-> PNEUMO
+BODY -[hidden]-> CTRL
+BODY -[hidden]-> WHEELS
+
+WHEELS -[hidden]-> W1
+WHEELS -[hidden]-> W2
+WHEELS -[hidden]-> CAST
+
+' Расположение элементов внутри корпуса
+SCALE -[hidden]-> PNEUMO
+PNEUMO -[hidden]-> CTRL
+CTRL -[hidden]-> WHEELS
+
+note top of SCALE
+  Передняя левая зона.
+  Низкорасположенная платформа
+  под тензоплатформу/ведро.
+end note
+
+note right of PNEUMO
+  Правая боковая зона.
+  Быстрый доступ для обслуживания
+  помпы/фильтров/шлангов.
+end note
+
+note bottom of CTRL
+  Задняя зона.
+  Отдельный гермобокс для
+  электроники и АКБ.
+end note
+
+note bottom of WHEELS
+  Большие ходовые колёса по бокам
+  + два поворотных ролика для
+  манёвренности.
+end note
+@enduml

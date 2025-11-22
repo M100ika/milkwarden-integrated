@@ -1,0 +1,103 @@
+@startuml
+!define DARKMODE
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam linetype ortho
+skinparam rectangle {
+  RoundCorner 12
+  Padding 6
+}
+
+title Интеллектуальный модуль Milkwarden — уровни взаимодействия
+
+actor "Оператор" as Operator
+actor "Корова" as Cow
+
+rectangle "Уровень устройств" {
+  node "Пост доения" as Post {
+    component "Тензодатчики\n+ AD7797" as LoadCell
+    component "Датчик вакуума\n0…−100 kPa" as Vacuum
+    component "Сенсор мутности\nSEN0189" as Turbidity
+    component "TDS Meter\nV1.0" as TDS
+    component "DS18B20\nSHT31/BME280" as Temp
+    component "Nextion\n+ OLED дисплеи" as Displays
+    component "Модуль опрыскивания\nфорсунки + насос" as Spray
+  }
+
+  component "ESP32-C3\nконтроллер веса" as ESPC3
+  component "ESP32-S3\nсенсорный концентратор" as ESP32
+  component "CF-MU904\nRFID + антенны" as RFID
+  component "Jetson Orin Nano\n2-4 PoE камеры" as Jetson
+}
+
+rectangle "Коммуникационный уровень" {
+  node "Raspberry Pi Zero 2 W\nMQTT + буфер" as RPI
+  component "GSM/LTE модем\nSIM7600" as GSM
+  cloud "Wi-Fi / Ethernet" as LAN
+}
+
+rectangle "Серверный уровень" {
+  node "FastAPI / Django REST\nWebSocket + Auth" as API
+  database "PostgreSQL / TimescaleDB" as DB
+  component "Аналитика\nCelery + Prometheus" as Analytics
+  component "Веб-панель\nReact/Vue" as UI
+}
+
+Cow --> LoadCell
+Cow --> Turbidity
+Cow --> TDS
+Cow --> Temp
+
+LoadCell --> ESPC3 : SPI
+Vacuum --> ESP32 : ADC
+Turbidity --> ESP32 : I2C/UART
+TDS --> ESP32
+Temp --> ESP32
+
+ESPC3 --> RPI : UART
+ESP32 --> RPI : Wi-Fi / MQTT
+RFID --> RPI : RS-485/Ethernet
+Jetson --> RPI : PoE / gRPC
+Displays <-- RPI : I2C
+RPI --> Spray : GPIO/RS485
+
+RPI --> GSM : USB
+RPI --> LAN : Wi-Fi/Ethernet
+GSM --> API : HTTPS/MQTT
+LAN --> API : TLS
+
+API --> DB
+API --> Analytics
+Analytics --> DB
+API --> UI : REST/WebSocket
+UI --> Operator
+
+Operator --> Displays : локальное управление
+
+note bottom of Jetson
+  Машинное зрение:
+  детекция → face-ID →
+  сверка с RFID
+end note
+
+note right of API
+  Авторизация:
+  mutual TLS для устройств,
+  OAuth2/JWT для операторов
+end note
+
+note left of RPI
+  Буферизация:
+  локальный MQTT,
+  SQLite-журнал,
+  подпись Ed25519
+end note
+
+note bottom of Spray
+  Преддоильная обработка:
+  команда от Raspberry
+  + контроль давления
+end note
+
+@enduml
