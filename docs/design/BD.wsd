@@ -1,13 +1,23 @@
 @startuml
 skinparam shadowing false
 skinparam classAttributeIconSize 0
-title Milkwarden — Data Model (ER)
+title Milkwarden — Data Model (ER) v2 (MVP-ready)
 
-' ==== Справочники и орг. сущности ====
+' ===============================
+' Орг. сущности и справочники
+' ===============================
 class Farm {
   +farm_id: UUID
   name: String
   location: String
+}
+
+class Stall {
+  +stall_id: UUID
+  farm_id: UUID
+  code: String      'e.g. ST1..ST4
+  name: String
+  notes: Text
 }
 
 class Animal {
@@ -23,122 +33,150 @@ class RfidTag {
   +rfid_id: UUID
   animal_id: UUID
   epc: String
-  standard: String  'ISO18000-6C
+  standard: String   'ISO18000-6C
   active: Boolean
+  assigned_at: DateTime
 }
 
+Farm "1" -- "0..*" Stall
 Farm "1" -- "0..*" Animal
 Animal "1" -- "0..*" RfidTag
 
-' ==== Устройства и сенсоры ====
+' ===============================
+' Устройства и сенсоры
+' ===============================
 class Device {
   +device_id: UUID
   farm_id: UUID
-  kind: String   'gateway, scale_node, rfid_node, vacuum_ctrl
+  stall_id: UUID?     'NULL for farm-level devices (gateway/server)
+  kind: String        'gateway, scale_node, flow_node, rfid_node, vacuum_ctrl
   model: String
+  hw_rev: String
   fw_version: String
-  status: String 'online/offline
+  serial_no: String
+  status: String      'online/offline/maintenance
+  last_seen: DateTime
 }
 
 class SensorType {
   +sensor_type_id: Int
-  name: String       'vacuum, flow, weight, milk_temp, conductivity...
+  name: String        'vacuum, flow, weight, milk_temp, conductivity...
   default_unit: String 'kPa, L/min, kg, °C, mS/cm
-  value_kind: String 'numeric/categorical/vector/blob
+  value_kind: String  'numeric/categorical/vector/blob
 }
 
 class Sensor {
   +sensor_id: UUID
   device_id: UUID
   sensor_type_id: Int
-  channel: String     'e.g. A0, I2C-0x3C, UART1
-  location: String    'cluster, bucket, line, ambient
-  calibration_id: UUID
+  channel: String     'A0, I2C-0x3C, UART1...
+  location: String    'stall/bucket/line/ambient
   active: Boolean
+  installed_at: DateTime
 }
 
 Device "1" -- "0..*" Sensor
 SensorType "1" -- "0..*" Sensor
+Stall "1" -- "0..*" Device
+Farm  "1" -- "0..*" Device
 
+' ===============================
+' Калибровки (история)
+' ===============================
 class Calibration {
   +calibration_id: UUID
   sensor_id: UUID
-  method: String   '2pt, multipoint, factory, lab
-  date: DateTime
+  method: String      '2pt, multipoint, factory, lab
+  ts: DateTime
   parameters: JSON
   by: String
+  approved: Boolean
 }
 
 Sensor "1" -- "0..*" Calibration
 
-' ==== Сессии доения и контекст ====
+' ===============================
+' Сессии доения
+' ===============================
 class MilkingSession {
   +session_id: UUID
   farm_id: UUID
+  stall_id: UUID
   animal_id: UUID
-  device_id: UUID
+  device_id: UUID      'primary device for session (usually scale/flow node)
   start_time: DateTime
-  end_time: DateTime
+  end_time: DateTime?  'NULL while active
   operator: String
-  outcome: String 'ok/aborted/error
+  outcome: String      'ok/aborted/error
   notes: Text
 }
 
-Farm "1" -- "0..*" MilkingSession
+Farm  "1" -- "0..*" MilkingSession
+Stall "1" -- "0..*" MilkingSession
 Animal "1" -- "0..*" MilkingSession
 Device "1" -- "0..*" MilkingSession
 
-' ==== Измерения (таймсерии) ====
+' ===============================
+' Измерения (таймсерии)
+' session_id допускается NULL (вне доения)
+' ===============================
 class Measurement {
   +measurement_id: UUID
   sensor_id: UUID
-  session_id: UUID
+  session_id: UUID?    'NULL for background telemetry
   ts: DateTime
   value_num: Double
   value_text: String
-  unit: String
-  quality: String 'ok, suspect, missing
+  unit: String?        'if NULL -> SensorType.default_unit
+  quality: String      'ok/suspect/missing
   meta: JSON
 }
 
 Sensor "1" -- "0..*" Measurement
 MilkingSession "1" -- "0..*" Measurement
 
-' ==== События ====
+' ===============================
+' События
+' session_id допускается NULL (сервисные/фоновые)
+' ===============================
 class Event {
   +event_id: UUID
   device_id: UUID
-  session_id: UUID
+  session_id: UUID?
   ts: DateTime
-  type: String   'rfid_read, alarm, start, stop
-  severity: String 'info/warn/error
+  type: String         'rfid_read, alarm, start, stop, heartbeat
+  severity: String     'info/warn/error
   payload: JSON
 }
 
 Device "1" -- "0..*" Event
 MilkingSession "1" -- "0..*" Event
 
-' ==== Образцы (лаборатория / офлайн) ====
+' ===============================
+' Образцы (лаборатория / офлайн)
+' ===============================
 class Sample {
   +sample_id: UUID
-  session_id: UUID
+  session_id: UUID?    'может быть NULL (взяли вне доения)
   animal_id: UUID
   ts: DateTime
-  kind: String   'milk_lab, swab, etc.
-  data: JSON     'fat/protein/lactose, SCC, etc.
+  kind: String         'milk_lab, swab, etc.
+  data: JSON           'fat/protein/lactose, SCC, etc.
   lab_ref: String
 }
 
 MilkingSession "1" -- "0..*" Sample
 Animal "1" -- "0..*" Sample
 
-' ==== Каталог метрик и атрибутов ====
+' ===============================
+' Каталог метрик и рассчитанные метрики сессии
+' ===============================
 class Metric {
   +metric_id: Int
-  name: String       'total_milk_L, peak_flow, vacuum_std
+  name: String         'total_milk_L, peak_flow, vacuum_std
   unit: String
-  formula: String    'computed spec or ref
-  category: String   'milk, vacuum, env, animal
+  formula: String      'computed spec or ref
+  category: String     'milk, vacuum, env, animal
 }
 
 class SessionMetric {
@@ -146,27 +184,33 @@ class SessionMetric {
   session_id: UUID
   metric_id: Int
   value: Double
-  unit: String
+  unit: String?        'if NULL -> Metric.unit
   meta: JSON
 }
 
 MilkingSession "1" -- "0..*" SessionMetric
 Metric "1" -- "0..*" SessionMetric
 
+' ===============================
+' Гибкие атрибуты (расширение без миграций)
+' ===============================
 class AttributeDef {
   +attr_id: Int
-  entity: String   'Animal/Device/Session/Sensor
+  entity: String       'Animal/Device/Session/Sensor/Farm/Stall
   name: String
-  type: String     'text/number/date/bool/json
+  type: String         'text/number/date/bool/json
+  unit: String?
 }
 
 class AttributeVal {
   +attr_val_id: UUID
   attr_id: Int
   entity_id: UUID
+  ts: DateTime?        'NULL for static attrs; set for time-varying
   value_text: String
   value_num: Double
   value_date: DateTime
+  value_bool: Boolean
   value_json: JSON
 }
 
