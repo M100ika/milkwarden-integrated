@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 // ─── Firmware ─────────────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION        "1.0.0"
+#define FIRMWARE_VERSION        "1.1.0"
 
 // ─── WiFi STA (connect to router) ─────────────────────────────────────────────
 struct WifiCredential { const char* ssid; const char* password; };
@@ -19,6 +19,10 @@ static const WifiCredential WIFI_CREDENTIALS[] = {
 
 // ─── Telnet — only debug channel ──────────────────────────────────────────────
 #define TELNET_PORT             23
+
+// ─── OTA ──────────────────────────────────────────────────────────────────────
+#define OTA_FIRMWARE_URL \
+    "https://github.com/M100ika/milkwarden-integrated/raw/refs/heads/main/esp32/esp32_master/esp32_master/build/firmware.bin"
 
 // ─── Slave count ──────────────────────────────────────────────────────────────
 #define SLAVE_COUNT             4

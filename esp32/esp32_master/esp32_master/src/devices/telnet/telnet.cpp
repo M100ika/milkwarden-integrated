@@ -2,6 +2,7 @@
 #include "config.h"
 #include "devices/wifi/wifi.h"
 #include "modules/gateway/gateway.h"
+#include "modules/ota/ota.h"
 #include <WiFi.h>
 #include <Arduino.h>
 
@@ -60,6 +61,13 @@ static void handleCommand(String str) {
                           (unsigned long)p.timestamp);
         }
 
+    } else if (str == "update") {
+        if (!isWifiConnected()) {
+            telnet.println("[OTA] No WiFi — connect first.");
+        } else {
+            startOTA();
+        }
+
     } else if (str == "reboot") {
         telnet.println("[System] Rebooting...");
         delay(300);
@@ -69,6 +77,7 @@ static void handleCommand(String str) {
         telnet.println("status        — uptime, WiFi, packet counts");
         telnet.println("stats         — snap/session counters per slave");
         telnet.println("last <1-4>    — last snapshot from slave N");
+        telnet.println("update        — OTA firmware update from GitHub");
         telnet.println("reboot        — restart");
 
     } else {
