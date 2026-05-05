@@ -62,6 +62,8 @@ void initCFMU910() {
             acc += c;
             t = millis();
             if (acc.endsWith("ConfigReader OK\n")) break;
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(5));
         }
     }
     sendCmd(0xFF, 0x0050, nullptr, 0);
@@ -85,6 +87,8 @@ bool cfmu910Scan(char* epcHex, uint8_t bufLen, int16_t* rssiOut) {
             stream[streamLen++] = RFIDSerial.read();
             t = millis();
             if (streamLen >= sizeof(stream) - 1) break;
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(5));
         }
     }
 
