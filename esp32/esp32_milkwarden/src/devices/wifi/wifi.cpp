@@ -1,43 +1,66 @@
 #include "wifi.h"
 #include "config.h"
 #include <WiFi.h>
-#include <WiFiUdp.h>
+#include <WiFiMulti.h>
+#include <esp_wifi.h>
 
-void initWiFi() {
-    pinMode(WIFI_LED_PIN, OUTPUT);
+static WiFiMulti         wifiMulti;
+static volatile uint8_t  activeChannel = ESPNOW_DEFAULT_CHANNEL;
 
-    WiFi.disconnect(true);
-    delay(200);
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+// ─── Event callbacks (run in WiFi task context, not ISR) ──────────────────────
 
-    Serial.print("[WiFi] Connecting");
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && attempts < WIFI_MAX_ATTEMPTS) {
-        delay(500);
-        Serial.print(".");
-        attempts++;
-        if (attempts == 10) WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    }
+static void onGotIp(WiFiEvent_t, WiFiEventInfo_t) {
+    uint8_t ch = static_cast<uint8_t>(WiFi.channel());
+    activeChannel = ch;
+    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    digitalWrite(WIFI_LED_PIN, HIGH);
+    Serial.printf("[WiFi] Connected %s  ch=%u\n",
+                  WiFi.localIP().toString().c_str(), ch);
+}
 
-    if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("\n[WiFi] IP: " + WiFi.localIP().toString());
-        xTaskCreatePinnedToCore(broadcastIpTask, "IpTask", 2048, NULL, 1, NULL, 0);
-        digitalWrite(WIFI_LED_PIN, HIGH);
-    } else {
-        Serial.println("\n[WiFi] Connection failed. Retrying in background.");
+static void onDisconnected(WiFiEvent_t, WiFiEventInfo_t) {
+    activeChannel = ESPNOW_DEFAULT_CHANNEL;
+    esp_wifi_set_channel(ESPNOW_DEFAULT_CHANNEL, WIFI_SECOND_CHAN_NONE);
+    digitalWrite(WIFI_LED_PIN, LOW);
+    Serial.printf("[WiFi] Disconnected, channel → %u\n", ESPNOW_DEFAULT_CHANNEL);
+}
+
+// ─── Background WiFiMulti task (Core 0) ───────────────────────────────────────
+// Blocks itself, not the main loop. Retries every WIFI_RECONNECT_INTERVAL_MS.
+
+static void wifiManagerTask(void* pv) {
+    for (;;) {
+        if (WiFi.status() != WL_CONNECTED)
+            wifiMulti.run(5000);
+        vTaskDelay(pdMS_TO_TICKS(WIFI_RECONNECT_INTERVAL_MS));
     }
 }
 
-// Broadcasts the station IP over UDP every 30 s so clients can discover it.
-void broadcastIpTask(void* pv) {
-    WiFiUDP udp;
-    for (;;) {
-        if (WiFi.status() == WL_CONNECTED) {
-            udp.beginPacket("255.255.255.255", IP_BROADCAST_PORT);
-            udp.printf("MILKA_STATION:%s", WiFi.localIP().toString().c_str());
-            udp.endPacket();
-        }
-        vTaskDelay(pdMS_TO_TICKS(30000));
-    }
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+void initComms() {
+    pinMode(WIFI_LED_PIN, OUTPUT);
+    digitalWrite(WIFI_LED_PIN, LOW);
+
+    WiFi.onEvent(onGotIp,        ARDUINO_EVENT_WIFI_STA_GOT_IP);
+    WiFi.onEvent(onDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_AP_STA);
+    esp_wifi_set_channel(ESPNOW_DEFAULT_CHANNEL, WIFI_SECOND_CHAN_NONE);
+
+    for (const auto& c : WIFI_CREDENTIALS)
+        wifiMulti.addAP(c.ssid, c.password);
+
+    xTaskCreatePinnedToCore(wifiManagerTask, "wifiMgr", 4096, NULL, 1, NULL, 0);
+
+    Serial.printf("[WiFi] Comms init, ESP-NOW base ch=%u\n", ESPNOW_DEFAULT_CHANNEL);
+}
+
+bool isWifiConnected() {
+    return WiFi.status() == WL_CONNECTED;
+}
+
+uint8_t getCurrentChannel() {
+    return activeChannel;
 }

@@ -1,4 +1,7 @@
 #pragma once
 
-void initWiFi();
-void broadcastIpTask(void* pv);
+#include <stdint.h>
+
+void    initComms();
+bool    isWifiConnected();
+uint8_t getCurrentChannel();
