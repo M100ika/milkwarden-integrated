@@ -3,12 +3,13 @@
 #include "devices/wifi/wifi.h"
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <stdio.h>
 
-bool sendToCloud(const DataPacket& pkt) {
+bool sendToCloud(const SessionPacket& pkt) {
     if (!isWifiConnected()) return false;
 
     WiFiClientSecure client;
-    client.setInsecure();  // replace with setCACert() for production
+    client.setInsecure();   // replace with setCACert() for production
 
     HTTPClient http;
     http.setTimeout(CLOUD_POST_TIMEOUT_MS);
@@ -18,10 +19,14 @@ bool sendToCloud(const DataPacket& pkt) {
 
     char body[256];
     snprintf(body, sizeof(body),
-        "{\"id\":%u,\"weight\":%.3f,\"rfid\":\"%s\","
-        "\"beam\":%u,\"count\":%u,\"flags\":%u}",
-        pkt.esp_id, pkt.weight, pkt.rfid_tag,
-        pkt.beam_state, pkt.container_count, pkt.status_flags);
+        "{\"id\":%u,\"rfid\":\"%s\","
+        "\"weight_initial\":%.3f,\"weight_final\":%.3f,"
+        "\"start_time\":%lu,\"end_time\":%lu,\"end_reason\":%u}",
+        pkt.esp_id, pkt.rfid_tag,
+        pkt.weight_initial, pkt.weight_final,
+        (unsigned long)pkt.start_time,
+        (unsigned long)pkt.end_time,
+        pkt.end_reason);
 
     int code = http.POST(body);
     http.end();

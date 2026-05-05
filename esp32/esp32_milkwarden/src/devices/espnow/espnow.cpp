@@ -15,10 +15,9 @@ void initEspNow() {
     }
     esp_now_register_send_cb(onSent);
 
-    // channel=0: always use the host's current WiFi channel (synced by wifi.cpp)
     esp_now_peer_info_t peer = {};
     memcpy(peer.peer_addr, MASTER_MAC, 6);
-    peer.channel = 0;
+    peer.channel = 0;   // 0 = use current WiFi channel
     peer.encrypt = false;
     if (esp_now_add_peer(&peer) != ESP_OK)
         Serial.println("[ESP-NOW] Add peer failed — check MASTER_MAC in config.h");
@@ -26,9 +25,16 @@ void initEspNow() {
         Serial.println("[ESP-NOW] Init OK");
 }
 
-bool sendDataPacket(const DataPacket& pkt) {
+bool espnowSendSnapshot(const SnapshotPacket& pkt) {
     esp_err_t r = esp_now_send(MASTER_MAC,
                                reinterpret_cast<const uint8_t*>(&pkt),
-                               sizeof(DataPacket));
+                               sizeof(SnapshotPacket));
+    return r == ESP_OK;
+}
+
+bool espnowSendSession(const SessionPacket& pkt) {
+    esp_err_t r = esp_now_send(MASTER_MAC,
+                               reinterpret_cast<const uint8_t*>(&pkt),
+                               sizeof(SessionPacket));
     return r == ESP_OK;
 }

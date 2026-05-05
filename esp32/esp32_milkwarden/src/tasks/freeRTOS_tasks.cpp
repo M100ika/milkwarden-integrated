@@ -1,16 +1,17 @@
 #include "freeRTOS_tasks.h"
 #include "devices/loadcell/loadcell.h"
+#include "devices/cfmu910/cfmu910.h"
+#include "modules/session/session.h"
 
-// WiFi stack runs on Core 0; HX711 task runs on Core 1 to avoid bit-bang interference.
 void startAllTasks() {
+    // Core 1: HX711 bit-bang task (isolated from WiFi stack on Core 0)
     xTaskCreatePinnedToCore(
-        hx711Task,         // task function
-        "hx711Task",       // name
-        2048,              // stack (bytes)
-        NULL,              // parameter
-        2,                 // priority (> loop=1, < WiFi=19)
-        &hx711TaskHandle,  // handle for pause/resume
-        1                  // Core 1
-    );
-    // broadcastIpTask is created inside initWiFi() once WiFi connects
+        hx711Task, "hx711", 2048, NULL, 2, &hx711TaskHandle, 1);
+
+    // Core 0: session state machine + 500 ms snapshot sender
+    xTaskCreatePinnedToCore(
+        sessionTask, "session", 4096, NULL, 1, NULL, 0);
+
+    // Core 0: background RFID scanning with confirmation logic
+    startRfidTask();
 }

@@ -1,4 +1,4 @@
 #pragma once
 
-// Creates all FreeRTOS tasks. Call after initLoadCell() and initWiFi().
+// Starts all FreeRTOS tasks. Call after all device inits.
 void startAllTasks();

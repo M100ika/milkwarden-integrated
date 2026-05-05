@@ -1,9 +1,14 @@
 #include "telnet.h"
 #include "config.h"
 #include "devices/loadcell/loadcell.h"
+#include "devices/beam/beam.h"
+#include "devices/cfmu910/cfmu910.h"
+#include "devices/espnow/espnow.h"
 #include "modules/ota/ota.h"
 #include "modules/storage/nvs_manager.h"
 #include "modules/heartbeat/heartbeat.h"
+#include "modules/ntp/ntp.h"
+#include "modules/session/session.h"
 #include <WiFi.h>
 #include <climits>
 
@@ -342,6 +347,147 @@ static void handleCommand(String str) {
     } else if (str == "update") {
         startOTA();
 
+    } else if (str == "reboot") {
+        telnet.println("[System] Rebooting...");
+        delay(300);
+        ESP.restart();
+
+    // ── RFID ──────────────────────────────────────────────────────────────
+    } else if (str == "rfid scan") {
+        rfidTaskPause();
+        delay(100);
+        telnet.println("[RFID] Scanning (3 s)...");
+        char epc[25] = {};
+        int16_t rssi = 0;
+        bool found = cfmu910Scan(epc, sizeof(epc), &rssi);
+        if (found)
+            telnet.printf("[RFID] EPC: %s  RSSI: %.1f dBm\n", epc, rssi / 10.0f);
+        else
+            telnet.println("[RFID] No tag found");
+        rfidTaskResume();
+
+    } else if (str == "rfid monitor") {
+        rfidTaskPause();
+        delay(100);
+        telnet.println("[RFID] Monitor (3 scans × 3 s)...");
+        for (int i = 0; i < 3; i++) {
+            char epc[25] = {};
+            int16_t rssi = 0;
+            if (cfmu910Scan(epc, sizeof(epc), &rssi))
+                telnet.printf("[RFID] #%d  EPC: %s  RSSI: %.1f dBm\n", i + 1, epc, rssi / 10.0f);
+            else
+                telnet.printf("[RFID] #%d  No tag\n", i + 1);
+        }
+        rfidTaskResume();
+
+    } else if (str == "rfid status") {
+        char epc[25] = {};
+        int16_t rssi = 0;
+        bool confirmed = getRfidConfirmed(epc, sizeof(epc), &rssi);
+        if (confirmed)
+            telnet.printf("[RFID] Confirmed: %s  RSSI: %.1f dBm\n", epc, rssi / 10.0f);
+        else
+            telnet.println("[RFID] Not confirmed yet");
+
+    // ── Beam sensor ───────────────────────────────────────────────────────
+    } else if (str == "beam") {
+        uint8_t b = readBeam();
+        telnet.printf("[Beam] State: %u (%s)\n", b, b ? "INTERRUPTED" : "OK");
+
+    } else if (str == "beam monitor") {
+        telnet.println("[Beam] Monitoring 10 s (Ctrl+C to stop)...");
+        uint8_t prev = 255;
+        uint32_t t = millis();
+        while (millis() - t < 10000) {
+            uint8_t cur = readBeam();
+            if (cur != prev) {
+                telnet.printf("[Beam] → %u (%s)\n", cur, cur ? "INTERRUPTED" : "OK");
+                prev = cur;
+            }
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        telnet.println("[Beam] Done");
+
+    // ── Session ───────────────────────────────────────────────────────────
+    } else if (str == "session") {
+        SessionInfo si = {};
+        getSessionInfo(&si);
+        const char* stateStr[] = {"IDLE", "COW_PRESENT", "MILKING"};
+        telnet.printf("[Session] State       : %s\n", stateStr[si.state]);
+        telnet.printf("[Session] RFID        : %s\n", si.rfid[0] ? si.rfid : "(none)");
+        telnet.printf("[Session] Weight init : %.2f g\n", si.weight_initial);
+        telnet.printf("[Session] Weight now  : %.2f g\n", si.weight_current);
+        if (si.start_time) {
+            char date[12], tme[10];
+            time_t t = (time_t)si.start_time;
+            struct tm ti; localtime_r(&t, &ti);
+            strftime(date, sizeof(date), "%Y-%m-%d", &ti);
+            strftime(tme,  sizeof(tme),  "%H:%M:%S", &ti);
+            telnet.printf("[Session] Started     : %s %s\n", date, tme);
+        } else {
+            telnet.println("[Session] Started     : —");
+        }
+
+    } else if (str == "session reset") {
+        sessionForceReset();
+        telnet.println("[Session] Reset → IDLE");
+
+    // ── WiFi ──────────────────────────────────────────────────────────────
+    } else if (str == "wifi") {
+        if (WiFi.status() == WL_CONNECTED) {
+            telnet.printf("[WiFi] SSID    : %s\n", WiFi.SSID().c_str());
+            telnet.printf("[WiFi] IP      : %s\n", WiFi.localIP().toString().c_str());
+            telnet.printf("[WiFi] Channel : %d\n", WiFi.channel());
+            telnet.printf("[WiFi] RSSI    : %d dBm\n", WiFi.RSSI());
+        } else {
+            telnet.println("[WiFi] Not connected");
+        }
+
+    // ── ESP-NOW ───────────────────────────────────────────────────────────
+    } else if (str == "espnow status") {
+        char mac[18];
+        snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X",
+                 MASTER_MAC[0], MASTER_MAC[1], MASTER_MAC[2],
+                 MASTER_MAC[3], MASTER_MAC[4], MASTER_MAC[5]);
+        telnet.printf("[ESP-NOW] Master MAC : %s\n", mac);
+
+    } else if (str == "espnow test") {
+        SnapshotPacket pkt = {};
+        pkt.type         = PKT_TYPE_SNAPSHOT;
+        pkt.esp_id       = ESP_DEVICE_ID;
+        pkt.ip_addr      = (uint32_t)WiFi.localIP();
+        strncpy(pkt.rfid_tag, "TEST", sizeof(pkt.rfid_tag) - 1);
+        pkt.beam_state   = readBeam();
+        pkt.device_state = DEV_STATE_IDLE;
+        pkt.weight       = getFilteredWeight(num_samples);
+        pkt.timestamp    = (uint32_t)getUnixTime();
+        pkt.msg_state    = MSG_STATE_OK;
+        bool ok = espnowSendSnapshot(pkt);
+        telnet.printf("[ESP-NOW] Test packet: %s\n", ok ? "accepted by driver" : "FAILED");
+
+    // ── Time / NTP ────────────────────────────────────────────────────────
+    } else if (str == "time") {
+        if (isTimeSynced()) {
+            char date[12], tme[10];
+            formatNTPTime(date, sizeof(date), tme, sizeof(tme));
+            telnet.printf("[NTP] %s %s\n", date, tme);
+        } else {
+            telnet.println("[NTP] Not synced (waiting for WiFi / server)");
+        }
+
+    } else if (str == "ntp sync") {
+        initNTP();
+        telnet.println("[NTP] Re-syncing...");
+        uint32_t t = millis();
+        while (!isTimeSynced() && millis() - t < 5000) vTaskDelay(pdMS_TO_TICKS(200));
+        if (isTimeSynced()) {
+            char date[12], tme[10];
+            formatNTPTime(date, sizeof(date), tme, sizeof(tme));
+            telnet.printf("[NTP] Synced: %s %s\n", date, tme);
+        } else {
+            telnet.println("[NTP] Sync failed (no WiFi or server unreachable)");
+        }
+
     } else if (str != "") {
         telnet.println("[Unknown] " + str);
     }
@@ -353,13 +499,17 @@ static void handleCommand(String str) {
 
 void initTelnet() {
     telnet.onConnect([](String ip) {
-        telnet.println("\n--- ESP32 Weight Station v" FIRMWARE_VERSION " ---");
+        telnet.println("\n--- Milkwarden v" FIRMWARE_VERSION " ---");
         telnet.println("MEASUREMENT  : start | stop | tare | samples <n>");
         telnet.println("CALIBRATION  : cal_tare | cal_weight <g> | calib <factor> | factor");
         telnet.println("CORNER CORR  : corner_test <FL|FR|BL|BR> | corner_report | corner_clear");
         telnet.println("AUTO-ZERO    : autozero on|off | az_thr <g> | az_time <ms>");
         telnet.println("DIAGNOSTICS  : diag | raw [n] | noise [n] | gain <128|64|32> | wiring");
-        telnet.println("SYSTEM       : save | status | update");
+        telnet.println("RFID         : rfid scan | rfid monitor | rfid status");
+        telnet.println("BEAM         : beam | beam monitor");
+        telnet.println("SESSION      : session | session reset");
+        telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync");
+        telnet.println("SYSTEM       : save | status | update | reboot");
         telnet.print("> ");
     });
 
