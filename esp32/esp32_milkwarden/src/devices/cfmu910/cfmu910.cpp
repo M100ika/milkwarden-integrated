@@ -81,11 +81,10 @@ bool cfmu910Scan(char* epcHex, uint8_t bufLen, int16_t* rssiOut) {
 
     static uint8_t stream[1024];
     uint16_t streamLen = 0;
-    uint32_t t = millis();
-    while (millis() - t < 3000) {
+    uint32_t deadline = millis() + 3000;
+    while (millis() < deadline) {
         if (RFIDSerial.available()) {
             stream[streamLen++] = RFIDSerial.read();
-            t = millis();
             if (streamLen >= sizeof(stream) - 1) break;
         } else {
             vTaskDelay(pdMS_TO_TICKS(5));
@@ -174,6 +173,7 @@ static void rfidBgTask(void* pv) {
         } else {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 

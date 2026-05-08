@@ -52,7 +52,7 @@ void initComms() {
     for (const auto& c : WIFI_CREDENTIALS)
         wifiMulti.addAP(c.ssid, c.password);
 
-    xTaskCreatePinnedToCore(wifiManagerTask, "wifiMgr", 4096, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(wifiManagerTask, "wifiMgr", 4096, NULL, 0, NULL, 0);
 
     Serial.printf("[WiFi] Comms init, ESP-NOW base ch=%u\n", ESPNOW_DEFAULT_CHANNEL);
 }
