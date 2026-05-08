@@ -54,8 +54,12 @@ static void handleCommand(String str) {
         if (!gatewayGetLastSnap(id, &p)) {
             telnet.printf("[last] No data for slave %u yet.\n", (unsigned)id);
         } else {
-            telnet.printf("[Slave %u] state=%-11s  weight=%.1f g\n",
-                          (unsigned)id, stateStr(p.device_state), (double)p.weight);
+            uint32_t ip = p.ip_addr;
+            telnet.printf("[Slave %u] ip=%u.%u.%u.%u  state=%-11s  weight=%.1f g\n",
+                          (unsigned)id,
+                          (unsigned)(ip & 0xFF), (unsigned)((ip >> 8) & 0xFF),
+                          (unsigned)((ip >> 16) & 0xFF), (unsigned)((ip >> 24) & 0xFF),
+                          stateStr(p.device_state), (double)p.weight);
             telnet.printf("          rfid=%s  beam=%s  ts=%lu\n",
                           p.rfid_tag[0] ? p.rfid_tag : "(none)",
                           p.beam_state ? "INTERRUPTED" : "OK",
