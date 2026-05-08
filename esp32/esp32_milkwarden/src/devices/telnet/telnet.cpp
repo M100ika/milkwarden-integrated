@@ -363,7 +363,15 @@ static void handleCommand(String str) {
         if (found)
             telnet.printf("[RFID] EPC: %s  RSSI: %.1f dBm\n", epc, rssi / 10.0f);
         else
-            telnet.println("[RFID] No tag found");
+            telnet.println("[RFID] No tag found — try 'rfid diag' for raw bytes");
+        rfidTaskResume();
+
+    } else if (str == "rfid diag") {
+        rfidTaskPause();
+        delay(100);
+        telnet.println("[RFID] Running diag (raw dump → Serial)...");
+        cfmu910Diag();
+        telnet.println("[RFID] Diag done — check Serial output");
         rfidTaskResume();
 
     } else if (str == "rfid monitor") {
@@ -505,7 +513,7 @@ void initTelnet() {
         telnet.println("CORNER CORR  : corner_test <FL|FR|BL|BR> | corner_report | corner_clear");
         telnet.println("AUTO-ZERO    : autozero on|off | az_thr <g> | az_time <ms>");
         telnet.println("DIAGNOSTICS  : diag | raw [n] | noise [n] | gain <128|64|32> | wiring");
-        telnet.println("RFID         : rfid scan | rfid monitor | rfid status");
+        telnet.println("RFID         : rfid scan | rfid monitor | rfid status | rfid diag");
         telnet.println("BEAM         : beam | beam monitor");
         telnet.println("SESSION      : session | session reset");
         telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync");

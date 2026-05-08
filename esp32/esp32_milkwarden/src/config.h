@@ -90,6 +90,7 @@ struct __attribute__((packed)) SessionPacket {
 #define CFMU910_RX_PIN              16
 #define CFMU910_TX_PIN              17
 #define CFMU910_BAUD                115200
+#define CFMU910_EN_PIN              22   // HIGH = module enabled
 
 // ─── HX711 Pins ───────────────────────────────────────────────────────────────
 #define LOADCELL_DOUT_PIN           34

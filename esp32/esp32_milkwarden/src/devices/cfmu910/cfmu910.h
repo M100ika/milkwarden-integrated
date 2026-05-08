@@ -10,6 +10,9 @@ void    startRfidTask();           // launch background scanning task
 // epcHex: null-terminated hex string; rssiOut: 0.1 dBm units.
 bool    cfmu910Scan(char* epcHex, uint8_t bufLen, int16_t* rssiOut);
 
+// Diagnostic: sends inventory, dumps raw bytes + parsed tags to Serial.
+void    cfmu910Diag();
+
 // Returns true when RFID_CONFIRM_COUNT identical scans accumulated.
 // Safe to call from any task.
 bool    getRfidConfirmed(char* epcOut, uint8_t bufLen, int16_t* rssiOut);
