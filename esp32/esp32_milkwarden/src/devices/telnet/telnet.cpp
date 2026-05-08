@@ -369,10 +369,24 @@ static void handleCommand(String str) {
     } else if (str == "rfid diag") {
         rfidTaskPause();
         delay(100);
-        telnet.println("[RFID] Running diag (raw dump → Serial)...");
-        cfmu910Diag();
-        telnet.println("[RFID] Diag done — check Serial output");
+        telnet.println("[RFID] Diag running (3 s)...");
+        cfmu910Diag([](const char* s) { telnet.println(s); });
         rfidTaskResume();
+
+    } else if (str == "rfid power") {
+        telnet.printf("[RFID] Current power: %u dBm\n", cfmu910GetPower());
+
+    } else if (str.startsWith("rfid power ")) {
+        int dBm = str.substring(11).toInt();
+        if (dBm < 10 || dBm > 33) {
+            telnet.println("[RFID] Power range: 10..33 dBm");
+        } else {
+            rfidTaskPause();
+            delay(100);
+            bool ok = cfmu910SetPower((uint8_t)dBm);
+            telnet.printf("[RFID] Power %u dBm: %s\n", dBm, ok ? "OK (saved)" : "FAILED");
+            rfidTaskResume();
+        }
 
     } else if (str == "rfid monitor") {
         rfidTaskPause();
@@ -513,7 +527,7 @@ void initTelnet() {
         telnet.println("CORNER CORR  : corner_test <FL|FR|BL|BR> | corner_report | corner_clear");
         telnet.println("AUTO-ZERO    : autozero on|off | az_thr <g> | az_time <ms>");
         telnet.println("DIAGNOSTICS  : diag | raw [n] | noise [n] | gain <128|64|32> | wiring");
-        telnet.println("RFID         : rfid scan | rfid monitor | rfid status | rfid diag");
+        telnet.println("RFID         : rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
         telnet.println("BEAM         : beam | beam monitor");
         telnet.println("SESSION      : session | session reset");
         telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync");
