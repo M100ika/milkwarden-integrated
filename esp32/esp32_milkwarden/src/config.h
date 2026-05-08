@@ -12,8 +12,6 @@
 struct WifiCredential { const char* ssid; const char* password; };
 static const WifiCredential WIFI_CREDENTIALS[] = {
     { "smart2",   "Kazatu2025" },
-    { "NUGuest",  ""           },
-    { "NU",       "1234512345" },
 };
 #define WIFI_LED_PIN                2
 #define WIFI_RECONNECT_INTERVAL_MS  10000U
@@ -26,7 +24,9 @@ static const WifiCredential WIFI_CREDENTIALS[] = {
 // ─── ESP-NOW ──────────────────────────────────────────────────────────────────
 #define ESPNOW_DEFAULT_CHANNEL      1
 // Update to the actual MAC of the Master ESP32 before flashing
-static const uint8_t MASTER_MAC[6] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+static const uint8_t MASTER_MAC[6] = {
+  0xEC, 0xE3, 0x34, 0x46, 0xD1, 0xA4
+};
 
 // ─── Cloud endpoint ───────────────────────────────────────────────────────────
 #define CLOUD_ENDPOINT_URL          "https://your-server/api/milk"

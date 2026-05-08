@@ -13,11 +13,19 @@ static GatewayStats stats;
 // ─── JSON serialisers ─────────────────────────────────────────────────────────
 
 static void sendSnapshot(const SnapshotPacket& p) {
-    char buf[160];
+    char buf[200];
+    // Convert uint32_t IP address to dotted decimal notation
+    uint32_t ip = p.ip_addr;
+    uint8_t b1 = (ip & 0xFF);
+    uint8_t b2 = ((ip >> 8) & 0xFF);
+    uint8_t b3 = ((ip >> 16) & 0xFF);
+    uint8_t b4 = ((ip >> 24) & 0xFF);
+    
     int n = snprintf(buf, sizeof(buf),
-        "{\"type\":\"snap\",\"id\":%u,\"rfid\":\"%s\","
+        "{\"type\":\"snap\",\"id\":%u,\"ip\":\"%u.%u.%u.%u\",\"rfid\":\"%s\","
         "\"beam\":%u,\"state\":%u,\"weight\":%.1f,\"ts\":%lu}\n",
         (unsigned)p.esp_id,
+        (unsigned)b1, (unsigned)b2, (unsigned)b3, (unsigned)b4,
         p.rfid_tag,
         (unsigned)p.beam_state,
         (unsigned)p.device_state,

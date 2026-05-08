@@ -31,6 +31,7 @@ static void publishSnapshot(SessionState state, const char* rfid,
     pkt.esp_id       = ESP_DEVICE_ID;
     pkt.ip_addr      = getIP();
     strncpy(pkt.rfid_tag, rfid, sizeof(pkt.rfid_tag) - 1);
+    
     pkt.beam_state   = beam;
     pkt.device_state = (uint8_t)state;
     pkt.weight       = weight;

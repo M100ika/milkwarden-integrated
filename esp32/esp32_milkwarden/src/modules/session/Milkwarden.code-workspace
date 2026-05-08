@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "../../../../../../.."
+		},
+		{
+			"name": "esp32_master",
+			"path": "../../../../esp32_master/esp32_master"
+		}
+	],
+	"settings": {}
+}

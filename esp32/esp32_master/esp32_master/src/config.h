@@ -8,8 +8,7 @@
 struct WifiCredential { const char* ssid; const char* password; };
 static const WifiCredential WIFI_CREDENTIALS[] = {
     { "smart2",   "Kazatu2025" },
-    { "NUGuest",  ""           },
-    {"Simba", "Mainura1994"},
+
 };
 #define WIFI_RECONNECT_MS       10000U
 
