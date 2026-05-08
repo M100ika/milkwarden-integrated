@@ -5,7 +5,9 @@
 
 static void onSent(const uint8_t* mac, esp_now_send_status_t status) {
     if (status != ESP_NOW_SEND_SUCCESS)
-        Serial.println("[ESP-NOW] Delivery failed");
+        Serial.printf("[ESP-NOW] Delivery failed  ch=%d  wifi=%s\n",
+                      WiFi.channel(),
+                      WiFi.status() == WL_CONNECTED ? "UP" : "DOWN");
 }
 
 void initEspNow() {

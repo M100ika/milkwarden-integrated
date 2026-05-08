@@ -14,9 +14,8 @@ static void onReceive(const uint8_t* mac, const uint8_t* data, int len) {
 }
 
 static void onGotIp(WiFiEvent_t, WiFiEventInfo_t) {
-    // Sync ESP-NOW channel to the router's channel
-    uint8_t ch = (uint8_t)WiFi.channel();
-    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    Serial.printf("[WiFi] Connected ch=%d  ip=%s\n",
+                  WiFi.channel(), WiFi.localIP().toString().c_str());
 }
 
 static void onDisconnected(WiFiEvent_t, WiFiEventInfo_t) {

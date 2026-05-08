@@ -46,7 +46,7 @@ void initComms() {
     WiFi.onEvent(onDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
 
     WiFi.disconnect(true);
-    WiFi.mode(WIFI_AP_STA);
+    WiFi.mode(WIFI_STA);
     esp_wifi_set_channel(ESPNOW_DEFAULT_CHANNEL, WIFI_SECOND_CHAN_NONE);
 
     for (const auto& c : WIFI_CREDENTIALS)

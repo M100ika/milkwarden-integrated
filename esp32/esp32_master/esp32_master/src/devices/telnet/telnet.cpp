@@ -23,6 +23,7 @@ static void handleCommand(String str) {
     if (str == "status") {
         telnet.printf("[Master] Firmware  : %s\n", FIRMWARE_VERSION);
         telnet.printf("[Master] Uptime    : %lu s\n", millis() / 1000UL);
+        telnet.printf("[Master] MAC       : %s\n", WiFi.macAddress().c_str());
         telnet.printf("[WiFi]   Status    : %s\n", isWifiConnected() ? "CONNECTED" : "DISCONNECTED");
         if (isWifiConnected()) {
             telnet.printf("[WiFi]   SSID      : %s\n", WiFi.SSID().c_str());
