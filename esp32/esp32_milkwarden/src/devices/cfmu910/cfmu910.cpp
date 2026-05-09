@@ -294,7 +294,7 @@ void cfmu910Diag(void (*printFn)(const char*)) {
 // ─── Background confirmation task ─────────────────────────────────────────────
 
 static SemaphoreHandle_t  s_mutex;
-static volatile bool      s_paused    = false;
+static volatile bool      s_paused    = true;
 static volatile bool      s_confirmed = false;
 static volatile int16_t   s_rssi      = 0;
 static char               s_confirmedEpc[25] = {};

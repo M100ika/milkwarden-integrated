@@ -114,6 +114,7 @@ void sessionTask(void* pv) {
             startTime     = 0;
             s_forceReset  = false;
             resetRfidConfirmation();
+            rfidTaskPause();
             Serial.println("[Session] Force reset → IDLE");
         }
 
@@ -130,6 +131,7 @@ void sessionTask(void* pv) {
                 resetRfidConfirmation();
                 memset(rfid, 0, sizeof(rfid));
                 msRfidStart = ms;
+                rfidTaskResume();
                 state = SESSION_COW_PRESENT;
                 Serial.println("[Session] Cow detected → COW_PRESENT");
             }
@@ -137,6 +139,7 @@ void sessionTask(void* pv) {
 
         case SESSION_COW_PRESENT:
             if (beam == 1) {
+                rfidTaskPause();
                 state = SESSION_IDLE;
                 Serial.println("[Session] Beam lost before RFID → IDLE");
                 break;
@@ -146,6 +149,7 @@ void sessionTask(void* pv) {
                 bool timeout   = (ms - msRfidStart) >= RFID_CONFIRM_TIMEOUT_MS;
 
                 if (confirmed || timeout) {
+                    rfidTaskPause();
                     if (!confirmed) {
                         memset(rfid, 0, sizeof(rfid));
                         Serial.println("[Session] RFID timeout → MILKING without tag");
@@ -176,6 +180,7 @@ void sessionTask(void* pv) {
                     startTime   = now;
                     wDropCheck  = w;
                     msDropCheck = ms;
+                    rfidTaskResume();
                     state = SESSION_COW_PRESENT;
                     break;
                 }
@@ -191,6 +196,7 @@ void sessionTask(void* pv) {
                 memset(rfid, 0, sizeof(rfid));
                 wInitial  = 0;
                 startTime = 0;
+                rfidTaskPause();
                 state = SESSION_IDLE;
             }
             break;
