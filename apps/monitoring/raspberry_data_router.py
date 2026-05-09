@@ -1,30 +1,26 @@
 """
 Raspberry Pi data router.
 
-Reads JSON lines from ESP32 master over UART.
-Routes snap packets to in-memory state (Nextion), session packets to server API.
+Listens to UART from ESP32 (see flowchart #5), validates JSON packets,
+and forwards them to the server API with retries and QoS metadata.
 """
 
 import json
 import time
 import urllib.request
+from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 try:
     import serial  # type: ignore
-except ImportError:
+except ImportError:  # pragma: no cover
     serial = None
 
-# Static mapping: esp_id → stall number.
-# Change values here to remap any ESP to any stall.
-STALL_MAP: Dict[int, int] = {
-    1: 1,
-    2: 2,
-    3: 3,
-    4: 4,
-}
 
-SERVER_URL = "http://localhost:8000/api/session"
+@dataclass
+class ValidationError(Exception):
+    field: str
+    message: str
 
 
 class DataRouter:
@@ -32,11 +28,10 @@ class DataRouter:
         self,
         serial_port: str = "/dev/ttyUSB0",
         baudrate: int = 115200,
-        server_url: str = SERVER_URL,
+        server_url: str = "http://localhost:8000/api/add_sensor_data",
     ) -> None:
         self.server_url = server_url
         self.serial = self._open_serial(serial_port, baudrate)
-        self.snap_state: Dict[int, Dict] = {}  # last snapshot per stall
 
     def _open_serial(self, port: str, baudrate: int):
         if serial is None:
@@ -50,29 +45,21 @@ class DataRouter:
             raw = input("Mock UART> ")
         return raw or None
 
-    def _stall(self, esp_id: int) -> int:
-        return STALL_MAP.get(esp_id, esp_id)
+    def validate_packet(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        required = [
+            "device_id",
+            "turbidity_idx",
+            "tds_ms_cm",
+            "vacuum_kpa",
+            "milk_temp_c",
+            "timestamp",
+        ]
+        for key in required:
+            if key not in payload:
+                raise ValidationError(key, "is required")
+        return payload
 
-    def _handle_snap(self, pkt: Dict[str, Any]) -> None:
-        stall = self._stall(pkt["id"])
-        self.snap_state[stall] = pkt
-        # TODO: push fields to Nextion component for stall N
-
-    def _handle_session(self, pkt: Dict[str, Any]) -> None:
-        stall = self._stall(pkt["id"])
-        payload = {
-            "stall":          stall,
-            "esp_id":         pkt["id"],
-            "rfid":           pkt.get("rfid", ""),
-            "weight_initial": pkt["w_init"],
-            "weight_final":   pkt["w_final"],
-            "start_time":     pkt["t_start"],
-            "end_time":       pkt["t_end"],
-            "end_reason":     pkt["reason"],
-        }
-        self._post(payload)
-
-    def _post(self, payload: Dict[str, Any]) -> None:
+    def forward_to_server(self, payload: Dict[str, Any]) -> None:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             self.server_url,
@@ -85,9 +72,9 @@ class DataRouter:
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     if resp.status < 300:
                         return
-            except Exception:
+            except Exception as exc:
                 time.sleep(2 ** attempt)
-        print("[ERROR] Failed to deliver session packet after 3 retries")
+        raise RuntimeError("Failed to deliver packet after retries")
 
     def loop(self) -> None:
         while True:
@@ -95,18 +82,11 @@ class DataRouter:
             if not line:
                 continue
             try:
-                pkt = json.loads(line)
-                pkt_type = pkt.get("type")
-                if pkt_type == "snap":
-                    self._handle_snap(pkt)
-                elif pkt_type == "session":
-                    self._handle_session(pkt)
-                else:
-                    print(f"[WARN] Unknown packet type: {pkt_type}")
-            except json.JSONDecodeError as exc:
-                print(f"[WARN] Bad JSON: {exc}")
-            except KeyError as exc:
-                print(f"[WARN] Missing field: {exc}")
+                payload = json.loads(line)
+                validated = self.validate_packet(payload)
+                self.forward_to_server(validated)
+            except ValidationError as err:
+                print(f"[WARN] Field {err.field}: {err.message}")
             except Exception as exc:
                 print(f"[ERROR] {exc}")
 
