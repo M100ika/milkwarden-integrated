@@ -454,6 +454,29 @@ static void handleCommand(String str) {
         sessionForceReset();
         telnet.println("[Session] Reset → IDLE");
 
+    } else if (str == "flow") {
+        telnet.println("[Flow] Live monitor 60 s (Enter to stop)...");
+        const char* stateStr[] = {"IDLE", "COW_PRESENT", "MILKING"};
+        SessionState prevState = (SessionState)255;
+        uint32_t t = millis();
+        while (millis() - t < 60000 && telnet.isConnected()) {
+            SessionInfo si = {};
+            getSessionInfo(&si);
+            uint8_t beam = readBeam();
+
+            if (si.state != prevState) {
+                telnet.printf("\n[Flow] ─── %s\n", stateStr[si.state]);
+                prevState = si.state;
+            }
+
+            telnet.printf("\r  beam=%-11s  w=%8.1f g  rfid=%-24s",
+                          beam ? "INTERRUPTED" : "OK",
+                          si.weight_current,
+                          si.rfid[0] ? si.rfid : "(none)");
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+        telnet.println("\n[Flow] Done");
+
     // ── WiFi ──────────────────────────────────────────────────────────────
     } else if (str == "wifi") {
         if (WiFi.status() == WL_CONNECTED) {
@@ -529,7 +552,7 @@ void initTelnet() {
         telnet.println("DIAGNOSTICS  : diag | raw [n] | noise [n] | gain <128|64|32> | wiring");
         telnet.println("RFID         : rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
         telnet.println("BEAM         : beam | beam monitor");
-        telnet.println("SESSION      : session | session reset");
+        telnet.println("SESSION      : session | session reset | flow");
         telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync");
         telnet.println("SYSTEM       : save | status | update | reboot");
         telnet.print("> ");

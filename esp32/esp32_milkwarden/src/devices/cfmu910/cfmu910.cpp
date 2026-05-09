@@ -15,7 +15,7 @@ static uint8_t        s_power = 26;   // dBm, loaded from NVS at init
 
 static void loadPower() {
     Preferences p;
-    p.begin("rfid", true);
+    p.begin("rfid", false);
     s_power = (uint8_t)p.getUChar("power", 26);
     p.end();
     if (s_power < 10 || s_power > 33) s_power = 26;

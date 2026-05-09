@@ -2,6 +2,7 @@
 #include "config.h"
 #include "devices/loadcell/loadcell.h"
 #include "devices/telnet/telnet.h"
+#include "modules/storage/nvs_manager.h"
 
 // ─── Global state ─────────────────────────────────────────────────────────────
 
@@ -41,6 +42,7 @@ void updateAutoZero() {
     } else if (nearZero && (now - nearZeroSince >= autoZeroHoldMs)) {
         safeTare(15);
         calibration_offset = scale.get_offset();
+        saveSettings();
         nearZeroSince = now;
         if (telnet.isConnected()) telnet.println("\n[AutoZero] Auto-tare performed.");
         Serial.println("[AutoZero] Tared.");
