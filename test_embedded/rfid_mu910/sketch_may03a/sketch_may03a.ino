@@ -1,7 +1,7 @@
 #include <HardwareSerial.h>
 
-#define RXD2 16
-#define TXD2 17
+#define RXD2 17
+#define TXD2 16
 
 HardwareSerial rfidSerial(2);
 
