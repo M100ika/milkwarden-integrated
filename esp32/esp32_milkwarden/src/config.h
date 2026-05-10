@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // ─── Firmware ─────────────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION            "1.3.3"
+#define FIRMWARE_VERSION            "1.4.3"
 
 // ─── Device Identity ──────────────────────────────────────────────────────────
 #define ESP_DEVICE_ID               2          // Slave number 1-4
@@ -29,8 +29,9 @@ static const uint8_t MASTER_MAC[6] = {
 };
 
 // ─── Cloud endpoint ───────────────────────────────────────────────────────────
-#define CLOUD_ENDPOINT_URL          "https://your-server/api/milk"
-#define CLOUD_POST_TIMEOUT_MS       2500
+#define CLOUD_ENDPOINT_URL          "https://uhtbdcackeowuidgpkbt.supabase.co/rest/v1/sessions"
+#define CLOUD_API_KEY               "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVodGJkY2Fja2Vvd3VpZGdwa2J0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzOTYzNzUsImV4cCI6MjA5Mzk3MjM3NX0.djYzj3yu4yTqX0XS1eTF-bLbB6tWCjeC9hKOeaoWhQo"
+#define CLOUD_POST_TIMEOUT_MS       5000
 
 // ─── Session logic ────────────────────────────────────────────────────────────
 #define RFID_CONFIRM_COUNT          5          // identical scans to confirm tag

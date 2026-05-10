@@ -4,6 +4,7 @@
 #include "devices/cfmu910/cfmu910.h"
 #include "devices/espnow/espnow.h"
 #include "devices/loadcell/loadcell.h"
+#include "modules/cloud/cloud.h"
 #include "modules/ntp/ntp.h"
 #include <Arduino.h>
 #include <WiFi.h>
@@ -60,8 +61,9 @@ static void publishSession(const char* rfid,
     bool ok      = espnowSendSession(pkt);
     pkt.msg_state = ok ? MSG_STATE_OK : MSG_STATE_FAIL;
 
-    Serial.printf("[Session] SessionPacket sent: rfid=%s wi=%.0f wf=%.0f reason=%u ok=%d\n",
-                  rfid, wInit, wFinal, reason, ok);
+    int cloudCode = sendToCloud(pkt);
+    Serial.printf("[Session] SessionPacket sent: rfid=%s wi=%.0f wf=%.0f reason=%u espnow=%d cloud=%d\n",
+                  rfid, wInit, wFinal, reason, ok, cloudCode);
 }
 
 static void updateInfo(SessionState state, const char* rfid,

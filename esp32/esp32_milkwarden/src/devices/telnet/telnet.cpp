@@ -4,6 +4,7 @@
 #include "devices/beam/beam.h"
 #include "devices/cfmu910/cfmu910.h"
 #include "devices/espnow/espnow.h"
+#include "modules/cloud/cloud.h"
 #include "modules/ota/ota.h"
 #include "modules/storage/nvs_manager.h"
 #include "modules/heartbeat/heartbeat.h"
@@ -510,6 +511,27 @@ static void handleCommand(String str) {
         bool ok = espnowSendSnapshot(pkt);
         telnet.printf("[ESP-NOW] Test packet: %s\n", ok ? "accepted by driver" : "FAILED");
 
+    } else if (str == "cloud test") {
+        telnet.println("[Cloud] Sending test session to Supabase...");
+        SessionPacket pkt = {};
+        pkt.type           = PKT_TYPE_SESSION;
+        pkt.esp_id         = ESP_DEVICE_ID;
+        pkt.ip_addr        = (uint32_t)WiFi.localIP();
+        strncpy(pkt.rfid_tag, "TEST_TAG_TELNET", sizeof(pkt.rfid_tag) - 1);
+        pkt.weight_initial = 0.0f;
+        pkt.weight_final   = 1234.5f;
+        pkt.start_time     = (uint32_t)getUnixTime();
+        pkt.end_time       = (uint32_t)getUnixTime();
+        pkt.end_reason     = END_REASON_COW_LEFT;
+        pkt.msg_state      = MSG_STATE_OK;
+        int code = sendToCloud(pkt);
+        if (code >= 200 && code < 300)
+            telnet.printf("[Cloud] HTTP %d OK — check Supabase table\n", code);
+        else if (code == 0)
+            telnet.println("[Cloud] FAILED — WiFi not connected");
+        else
+            telnet.printf("[Cloud] FAILED — HTTP %d\n%s\n", code, cloudLastBody());
+
     // ── Time / NTP ────────────────────────────────────────────────────────
     } else if (str == "time") {
         if (isTimeSynced()) {
@@ -553,7 +575,7 @@ void initTelnet() {
         telnet.println("RFID         : rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
         telnet.println("BEAM         : beam | beam monitor");
         telnet.println("SESSION      : session | session reset | flow");
-        telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync");
+        telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync | cloud test");
         telnet.println("SYSTEM       : save | status | update | reboot");
         telnet.print("> ");
     });
