@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 // ─── Firmware ─────────────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION        "1.1.2"
+#define FIRMWARE_VERSION        "1.1.3"
 
 // ─── WiFi STA (connect to router) ─────────────────────────────────────────────
 struct WifiCredential { const char* ssid; const char* password; };
