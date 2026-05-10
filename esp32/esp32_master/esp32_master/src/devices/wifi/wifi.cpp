@@ -14,8 +14,7 @@ static void onReceive(const uint8_t* mac, const uint8_t* data, int len) {
 }
 
 static void onGotIp(WiFiEvent_t, WiFiEventInfo_t) {
-    Serial.printf("[WiFi] Connected ch=%d  ip=%s\n",
-                  WiFi.channel(), WiFi.localIP().toString().c_str());
+    // Serial is reserved for RPi — log via Telnet only
 }
 
 static void onDisconnected(WiFiEvent_t, WiFiEventInfo_t) {
