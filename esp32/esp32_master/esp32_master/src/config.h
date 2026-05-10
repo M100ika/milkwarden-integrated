@@ -12,9 +12,8 @@ static const WifiCredential WIFI_CREDENTIALS[] = {
 };
 #define WIFI_RECONNECT_MS       10000U
 
-// ─── Raspberry Pi: UART0 (Serial) at 115200 ───────────────────────────────────
-// DO NOT use Serial.print/println for debug — output goes straight to RPi
-#define RPI_BAUD                115200
+// ─── Nextion display: UART0 (Serial, GPIO1/3) ────────────────────────────────
+#define NEXTION_BAUD            9600
 
 // ─── Telnet — only debug channel ──────────────────────────────────────────────
 #define TELNET_PORT             23
