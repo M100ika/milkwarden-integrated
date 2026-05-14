@@ -171,13 +171,23 @@ uint8_t cfmu910GetPower() {
     return s_power;
 }
 
+// ─── Stop inventory (sends 0x0002, flushes leftover UART data) ───────────────
+
+static void stopInventory() {
+    sendCmd(0xFF, 0x0002, nullptr, 0);
+    vTaskDelay(pdMS_TO_TICKS(50));
+    while (RFIDSerial.available()) RFIDSerial.read();
+}
+
 // ─── Single blocking scan ─────────────────────────────────────────────────────
 
 bool cfmu910Scan(char* epcHex, uint8_t bufLen, int16_t* rssiOut) {
+    while (RFIDSerial.available()) RFIDSerial.read(); // flush stale data
+
     const uint8_t invData[] = {0x00, 0x00, 0x00, 0x00, 0x02};
     sendCmd(0xFF, 0x0001, invData, sizeof(invData));
 
-    static uint8_t stream[1024];
+    uint8_t stream[1024];
     uint16_t streamLen = 0;
     uint32_t deadline = millis() + 3000;
     while (millis() < deadline && streamLen < sizeof(stream) - 1) {
@@ -186,6 +196,8 @@ bool cfmu910Scan(char* epcHex, uint8_t bufLen, int16_t* rssiOut) {
         else
             vTaskDelay(pdMS_TO_TICKS(5));
     }
+
+    stopInventory(); // tell module to stop; flush any data that arrived after deadline
 
     uint8_t bestEpc[32] = {};
     uint8_t bestEpcLen  = 0;
@@ -295,6 +307,7 @@ void cfmu910Diag(void (*printFn)(const char*)) {
 
 static SemaphoreHandle_t  s_mutex;
 static volatile bool      s_paused    = true;
+static volatile bool      s_scanning  = false;  // true while inside cfmu910Scan
 static volatile bool      s_confirmed = false;
 static volatile int16_t   s_rssi      = 0;
 static char               s_confirmedEpc[25] = {};
@@ -306,6 +319,7 @@ static void rfidBgTask(void* pv) {
     int16_t rssi;
     for (;;) {
         if (!s_paused) {
+            s_scanning = true;
             if (cfmu910Scan(epc, sizeof(epc), &rssi)) {
                 xSemaphoreTake(s_mutex, portMAX_DELAY);
                 if (strcmp(epc, s_streakEpc) == 0) {
@@ -328,6 +342,7 @@ static void rfidBgTask(void* pv) {
                 s_streakEpc[0] = '\0';
                 xSemaphoreGive(s_mutex);
             }
+            s_scanning = false;
         } else {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
@@ -362,5 +377,12 @@ void resetRfidConfirmation() {
     xSemaphoreGive(s_mutex);
 }
 
-void rfidTaskPause()  { s_paused = true; }
+void rfidTaskPause() {
+    s_paused = true;
+    // wait until the background task finishes its current scan (max 4 s)
+    uint32_t deadline = millis() + 4000;
+    while (s_scanning && millis() < deadline)
+        vTaskDelay(pdMS_TO_TICKS(10));
+}
+
 void rfidTaskResume() { s_paused = false; }

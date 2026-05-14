@@ -356,7 +356,6 @@ static void handleCommand(String str) {
     // ── RFID ──────────────────────────────────────────────────────────────
     } else if (str == "rfid scan") {
         rfidTaskPause();
-        delay(100);
         telnet.println("[RFID] Scanning (3 s)...");
         char epc[25] = {};
         int16_t rssi = 0;
@@ -369,7 +368,6 @@ static void handleCommand(String str) {
 
     } else if (str == "rfid diag") {
         rfidTaskPause();
-        delay(100);
         telnet.println("[RFID] Diag running (3 s)...");
         cfmu910Diag([](const char* s) { telnet.println(s); });
         rfidTaskResume();
@@ -383,7 +381,6 @@ static void handleCommand(String str) {
             telnet.println("[RFID] Power range: 10..33 dBm");
         } else {
             rfidTaskPause();
-            delay(100);
             bool ok = cfmu910SetPower((uint8_t)dBm);
             telnet.printf("[RFID] Power %u dBm: %s\n", dBm, ok ? "OK (saved)" : "FAILED");
             rfidTaskResume();
@@ -391,7 +388,6 @@ static void handleCommand(String str) {
 
     } else if (str == "rfid monitor") {
         rfidTaskPause();
-        delay(100);
         telnet.println("[RFID] Monitor (3 scans × 3 s)...");
         for (int i = 0; i < 3; i++) {
             char epc[25] = {};
