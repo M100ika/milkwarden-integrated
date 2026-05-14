@@ -11,10 +11,11 @@
 #include "modules/ntp/ntp.h"
 #include "modules/session/session.h"
 #include "modules/cloud/cloud.h"
+#include "modules/tlog/tlog.h"
 #include "tasks/freeRTOS_tasks.h"
 
 static void initAllSystems() {
-    Serial.begin(115200);
+    tlogInit();
     loadSettings();    // restore calibration & auto-zero params from NVS
     loadConfigFile();  // optional override from LittleFS /config.ini
     initLoadCell();    // HX711 begin + tare (or restore offset from NVS)

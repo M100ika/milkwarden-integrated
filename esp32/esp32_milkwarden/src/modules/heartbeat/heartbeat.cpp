@@ -3,6 +3,7 @@
 #include "devices/loadcell/loadcell.h"
 #include "devices/telnet/telnet.h"
 #include "modules/storage/nvs_manager.h"
+#include "modules/tlog/tlog.h"
 
 // ─── Global state ─────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ void updateAutoZero() {
         saveSettings();
         nearZeroSince = now;
         if (telnet.isConnected()) telnet.println("\n[AutoZero] Auto-tare performed.");
-        Serial.println("[AutoZero] Tared.");
+        tlog("[AutoZero] Tared.");
     }
 }
 

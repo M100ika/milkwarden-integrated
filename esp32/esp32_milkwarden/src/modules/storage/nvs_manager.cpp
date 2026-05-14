@@ -2,6 +2,7 @@
 #include "config.h"
 #include "devices/loadcell/loadcell.h"
 #include "modules/heartbeat/heartbeat.h"
+#include "modules/tlog/tlog.h"
 #include <Preferences.h>
 #include <LittleFS.h>
 
@@ -18,7 +19,7 @@ void loadSettings() {
     autoZeroThreshold  = prefs.getFloat("az_thr",  DEFAULT_AUTOZERO_THRESHOLD);
     autoZeroHoldMs     = prefs.getUInt( "az_time", DEFAULT_AUTOZERO_HOLD_MS);
     prefs.end();
-    Serial.printf("[NVS] factor=%.4f  offset=%ld  samples=%d\n",
+    tlog("[NVS] factor=%.4f  offset=%ld  samples=%d",
                   calibration_factor, calibration_offset, num_samples);
 }
 
@@ -31,7 +32,7 @@ void saveSettings() {
     prefs.putFloat("az_thr",  autoZeroThreshold);
     prefs.putUInt( "az_time", autoZeroHoldMs);
     prefs.end();
-    Serial.println("[NVS] Settings saved.");
+    tlog("[NVS] Settings saved.");
 }
 
 // ─── SPIFFS / LittleFS config.ini reader ─────────────────────────────────────
@@ -46,18 +47,18 @@ void saveSettings() {
 
 void loadConfigFile() {
     if (!LittleFS.begin(false)) {
-        Serial.println("[Config] LittleFS not mounted, skipping config.ini");
+        tlog("[Config] LittleFS not mounted, skipping config.ini");
         return;
     }
     if (!LittleFS.exists("/config.ini")) {
-        Serial.println("[Config] /config.ini not found");
+        tlog("[Config] /config.ini not found");
         LittleFS.end();
         return;
     }
 
     File f = LittleFS.open("/config.ini", "r");
     if (!f) {
-        Serial.println("[Config] Cannot open /config.ini");
+        tlog("[Config] Cannot open /config.ini");
         LittleFS.end();
         return;
     }
@@ -94,5 +95,5 @@ void loadConfigFile() {
 
     f.close();
     LittleFS.end();
-    Serial.printf("[Config] Loaded %d value(s) from /config.ini\n", parsed);
+    tlog("[Config] Loaded %d value(s) from /config.ini", parsed);
 }

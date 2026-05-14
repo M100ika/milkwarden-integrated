@@ -2,17 +2,18 @@
 #include "config.h"
 #include <esp_now.h>
 #include <WiFi.h>
+#include "modules/tlog/tlog.h"
 
 static void onSent(const uint8_t* mac, esp_now_send_status_t status) {
     if (status != ESP_NOW_SEND_SUCCESS)
-        Serial.printf("[ESP-NOW] Delivery failed  ch=%d  wifi=%s\n",
+        tlog("[ESP-NOW] Delivery failed  ch=%d  wifi=%s",
                       WiFi.channel(),
                       WiFi.status() == WL_CONNECTED ? "UP" : "DOWN");
 }
 
 void initEspNow() {
     if (esp_now_init() != ESP_OK) {
-        Serial.println("[ESP-NOW] Init failed");
+        tlog("[ESP-NOW] Init failed");
         return;
     }
     esp_now_register_send_cb(onSent);
@@ -22,9 +23,9 @@ void initEspNow() {
     peer.channel = 0;   // 0 = use current WiFi channel
     peer.encrypt = false;
     if (esp_now_add_peer(&peer) != ESP_OK)
-        Serial.println("[ESP-NOW] Add peer failed — check MASTER_MAC in config.h");
+        tlog("[ESP-NOW] Add peer failed — check MASTER_MAC in config.h");
     else
-        Serial.println("[ESP-NOW] Init OK");
+        tlog("[ESP-NOW] Init OK");
 }
 
 bool espnowSendSnapshot(const SnapshotPacket& pkt) {

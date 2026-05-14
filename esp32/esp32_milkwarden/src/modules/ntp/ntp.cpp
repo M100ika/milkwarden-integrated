@@ -1,10 +1,11 @@
 #include "ntp.h"
 #include "config.h"
 #include <Arduino.h>
+#include "modules/tlog/tlog.h"
 
 void initNTP() {
     configTime(NTP_GMT_OFFSET_SEC, NTP_DAYLIGHT_OFFSET_SEC, NTP_SERVER);
-    Serial.println("[NTP] Configured: " NTP_SERVER);
+    tlog("[NTP] Configured: " NTP_SERVER);
 }
 
 bool isTimeSynced() {

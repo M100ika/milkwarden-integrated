@@ -6,6 +6,7 @@
 #include "devices/loadcell/loadcell.h"
 #include "modules/cloud/cloud.h"
 #include "modules/ntp/ntp.h"
+#include "modules/tlog/tlog.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
@@ -62,7 +63,7 @@ static void publishSession(const char* rfid,
     pkt.msg_state = ok ? MSG_STATE_OK : MSG_STATE_FAIL;
 
     int cloudCode = sendToCloud(pkt);
-    Serial.printf("[Session] SessionPacket sent: rfid=%s wi=%.0f wf=%.0f reason=%u espnow=%d cloud=%d\n",
+    tlog("[Session] SessionPacket sent: rfid=%s wi=%.0f wf=%.0f reason=%u espnow=%d cloud=%d",
                   rfid, wInit, wFinal, reason, ok, cloudCode);
 }
 
@@ -81,7 +82,7 @@ static void updateInfo(SessionState state, const char* rfid,
 
 void initSession() {
     s_infoMutex = xSemaphoreCreateMutex();
-    Serial.println("[Session] Init OK");
+    tlog("[Session] Init OK");
 }
 
 void sessionForceReset() {
@@ -117,7 +118,7 @@ void sessionTask(void* pv) {
             s_forceReset  = false;
             resetRfidConfirmation();
             rfidTaskPause();
-            Serial.println("[Session] Force reset → IDLE");
+            tlog("[Session] Force reset → IDLE");
         }
 
         float    w    = getFilteredWeight(num_samples);
@@ -135,7 +136,7 @@ void sessionTask(void* pv) {
                 msRfidStart = ms;
                 rfidTaskResume();
                 state = SESSION_COW_PRESENT;
-                Serial.println("[Session] Cow detected → COW_PRESENT");
+                tlog("[Session] Cow detected → COW_PRESENT");
             }
             break;
 
@@ -143,7 +144,7 @@ void sessionTask(void* pv) {
             if (beam == 1) {
                 rfidTaskPause();
                 state = SESSION_IDLE;
-                Serial.println("[Session] Beam lost before RFID → IDLE");
+                tlog("[Session] Beam lost before RFID → IDLE");
                 break;
             }
             {
@@ -154,9 +155,9 @@ void sessionTask(void* pv) {
                     rfidTaskPause();
                     if (!confirmed) {
                         memset(rfid, 0, sizeof(rfid));
-                        Serial.println("[Session] RFID timeout → MILKING without tag");
+                        tlog("[Session] RFID timeout → MILKING without tag");
                     } else {
-                        Serial.printf("[Session] RFID OK: %s → MILKING\n", rfid);
+                        tlog("[Session] RFID OK: %s → MILKING", rfid);
                     }
                     wInitial    = w;
                     startTime   = now;
@@ -171,7 +172,7 @@ void sessionTask(void* pv) {
             // Weight drop detection
             if (ms - msDropCheck >= WEIGHT_DROP_WINDOW_MS) {
                 if (wDropCheck - w > WEIGHT_DROP_G) {
-                    Serial.printf("[Session] Weight drop %.0f→%.0f g → BUCKET CHANGE\n",
+                    tlog("[Session] Weight drop %.0f→%.0f g → BUCKET CHANGE",
                                   wDropCheck, w);
                     publishSession(rfid, wInitial, w, startTime, now,
                                    END_REASON_BUCKET_CHANGE);
@@ -192,7 +193,7 @@ void sessionTask(void* pv) {
 
             // Cow left
             if (beam == 1) {
-                Serial.println("[Session] Beam open → SESSION END");
+                tlog("[Session] Beam open → SESSION END");
                 publishSession(rfid, wInitial, w, startTime, now,
                                END_REASON_COW_LEFT);
                 memset(rfid, 0, sizeof(rfid));

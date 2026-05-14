@@ -1,5 +1,6 @@
 #include "loadcell.h"
 #include "config.h"
+#include "modules/tlog/tlog.h"
 
 // ─── Global state ─────────────────────────────────────────────────────────────
 
@@ -27,7 +28,7 @@ void initLoadCell() {
 
     if (calibration_offset != 0) {
         scale.set_offset(calibration_offset);
-        Serial.println("[Scale] Offset loaded from NVS, tare skipped.");
+        tlog("[Scale] Offset loaded from NVS, tare skipped.");
     } else {
         safeTare(15);
         calibration_offset = scale.get_offset();

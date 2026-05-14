@@ -5,8 +5,10 @@
 #include <Preferences.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <esp_task_wdt.h>
 #include <string.h>
 #include <stdarg.h>
+#include "modules/tlog/tlog.h"
 
 static HardwareSerial RFIDSerial(2);
 static uint8_t        s_power = 26;   // dBm, loaded from NVS at init
@@ -102,7 +104,7 @@ void initCFMU910() {
     digitalWrite(CFMU910_EN_PIN, LOW);
     vTaskDelay(pdMS_TO_TICKS(50));
     digitalWrite(CFMU910_EN_PIN, HIGH);
-    Serial.println("[RFID] EN=HIGH, waiting for boot...");
+    tlog("[RFID] EN=HIGH, waiting for boot...");
 
     RFIDSerial.begin(CFMU910_BAUD, SERIAL_8N1, CFMU910_RX_PIN, CFMU910_TX_PIN);
 
@@ -118,7 +120,7 @@ void initCFMU910() {
             vTaskDelay(pdMS_TO_TICKS(5));
         }
     }
-    Serial.printf("[RFID] Boot: %s (%d bytes)\n",
+    tlog("[RFID] Boot: %s (%d bytes)",
                   booted ? "OK" : "timeout", acc.length());
 
     // MODULE_INIT
@@ -127,9 +129,9 @@ void initCFMU910() {
     uint8_t resp[16] = {};
     uint16_t rn = readRaw(resp, sizeof(resp), 300);
     if (rn >= 6)
-        Serial.printf("[RFID] MODULE_INIT: status=0x%02X\n", resp[5]);
+        tlog("[RFID] MODULE_INIT: status=0x%02X", resp[5]);
     else
-        Serial.printf("[RFID] MODULE_INIT: no response (%u bytes)\n", rn);
+        tlog("[RFID] MODULE_INIT: no response (%u bytes)", rn);
 
     // GET_INFO
     sendCmd(0xFF, 0x0051, nullptr, 0);
@@ -137,16 +139,16 @@ void initCFMU910() {
     uint8_t info[100] = {};
     uint16_t in = readRaw(info, sizeof(info), 400);
     if (in >= 7 && info[5] == 0x00)
-        Serial.printf("[RFID] HW: %.32s  FW: %.32s\n",
+        tlog("[RFID] HW: %.32s  FW: %.32s",
                       (char*)(info + 6), (char*)(info + 38));
     else
-        Serial.printf("[RFID] GET_INFO: no/bad response (%u bytes)\n", in);
+        tlog("[RFID] GET_INFO: no/bad response (%u bytes)", in);
 
     // Apply saved power
     cfmu910SetPower(s_power);
 
     while (RFIDSerial.available()) RFIDSerial.read();
-    Serial.printf("[RFID] Init done, power=%u dBm\n", s_power);
+    tlog("[RFID] Init done, power=%u dBm", s_power);
 }
 
 // ─── Power control ────────────────────────────────────────────────────────────
@@ -187,14 +189,16 @@ bool cfmu910Scan(char* epcHex, uint8_t bufLen, int16_t* rssiOut) {
     const uint8_t invData[] = {0x00, 0x00, 0x00, 0x00, 0x02};
     sendCmd(0xFF, 0x0001, invData, sizeof(invData));
 
-    uint8_t stream[1024];
+    static uint8_t stream[1024];
     uint16_t streamLen = 0;
     uint32_t deadline = millis() + 3000;
     while (millis() < deadline && streamLen < sizeof(stream) - 1) {
         if (RFIDSerial.available())
             stream[streamLen++] = (uint8_t)RFIDSerial.read();
-        else
+        else {
+            esp_task_wdt_reset();
             vTaskDelay(pdMS_TO_TICKS(5));
+        }
     }
 
     stopInventory(); // tell module to stop; flush any data that arrived after deadline
@@ -244,7 +248,7 @@ static void rfidPrintf(void (*printFn)(const char*), const char* fmt, ...) {
     if (printFn)
         printFn(buf);
     else
-        Serial.println(buf);
+        tlog("%s", buf);
 }
 
 void cfmu910Diag(void (*printFn)(const char*)) {
@@ -318,8 +322,16 @@ static void rfidBgTask(void* pv) {
     char    epc[25];
     int16_t rssi;
     for (;;) {
+        // atomically check s_paused and claim s_scanning
+        bool doScan = false;
+        xSemaphoreTake(s_mutex, portMAX_DELAY);
         if (!s_paused) {
             s_scanning = true;
+            doScan = true;
+        }
+        xSemaphoreGive(s_mutex);
+
+        if (doScan) {
             if (cfmu910Scan(epc, sizeof(epc), &rssi)) {
                 xSemaphoreTake(s_mutex, portMAX_DELAY);
                 if (strcmp(epc, s_streakEpc) == 0) {
@@ -332,7 +344,7 @@ static void rfidBgTask(void* pv) {
                     s_confirmed = true;
                     s_rssi      = rssi;
                     strncpy(s_confirmedEpc, epc, sizeof(s_confirmedEpc) - 1);
-                    Serial.printf("[RFID] Confirmed (%d): %s  RSSI=%.1f dBm\n",
+                    tlog("[RFID] Confirmed (%d): %s  RSSI=%.1f dBm",
                                   RFID_CONFIRM_COUNT, epc, rssi / 10.0f);
                 }
                 xSemaphoreGive(s_mutex);
@@ -342,7 +354,9 @@ static void rfidBgTask(void* pv) {
                 s_streakEpc[0] = '\0';
                 xSemaphoreGive(s_mutex);
             }
+            xSemaphoreTake(s_mutex, portMAX_DELAY);
             s_scanning = false;
+            xSemaphoreGive(s_mutex);
         } else {
             vTaskDelay(pdMS_TO_TICKS(100));
         }
@@ -353,7 +367,7 @@ static void rfidBgTask(void* pv) {
 void startRfidTask() {
     s_mutex = xSemaphoreCreateMutex();
     xTaskCreatePinnedToCore(rfidBgTask, "rfidBg", 4096, NULL, 1, NULL, 0);
-    Serial.println("[RFID] Background task started");
+    tlog("[RFID] Background task started");
 }
 
 bool getRfidConfirmed(char* epcOut, uint8_t bufLen, int16_t* rssiOut) {
@@ -378,11 +392,21 @@ void resetRfidConfirmation() {
 }
 
 void rfidTaskPause() {
+    // atomically set s_paused so bg task can't start a new scan
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_paused = true;
-    // wait until the background task finishes its current scan (max 4 s)
+    xSemaphoreGive(s_mutex);
+
+    // wait for any scan already in progress to finish (max 4 s)
     uint32_t deadline = millis() + 4000;
-    while (s_scanning && millis() < deadline)
+    while (millis() < deadline) {
+        xSemaphoreTake(s_mutex, portMAX_DELAY);
+        bool scanning = s_scanning;
+        xSemaphoreGive(s_mutex);
+        if (!scanning) break;
+        esp_task_wdt_reset();
         vTaskDelay(pdMS_TO_TICKS(10));
+    }
 }
 
 void rfidTaskResume() { s_paused = false; }

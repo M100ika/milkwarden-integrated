@@ -10,6 +10,7 @@
 #include "modules/heartbeat/heartbeat.h"
 #include "modules/ntp/ntp.h"
 #include "modules/session/session.h"
+#include "modules/tlog/tlog.h"
 #include <WiFi.h>
 #include <climits>
 
@@ -148,6 +149,8 @@ static void noiseTest(int n) {
     float g_noise = (float)(vmax - vmin) / fabsf(calibration_factor);
     telnet.printf("[Noise] avg=%ld  p-p raw=%ld  noise=%.3f g\n", avg, vmax - vmin, g_noise);
 }
+
+static void printHelp();
 
 // ─── Command handler ──────────────────────────────────────────────────────────
 
@@ -551,8 +554,14 @@ static void handleCommand(String str) {
             telnet.println("[NTP] Sync failed (no WiFi or server unreachable)");
         }
 
+    } else if (str == "bootlog") {
+        tlogDump(&telnet);
+
+    } else if (str == "help") {
+        printHelp();
+
     } else if (str != "") {
-        telnet.println("[Unknown] " + str);
+        telnet.println("[Unknown] " + str + "  (type 'help' for command list)");
     }
 
     telnet.print("> ");
@@ -560,19 +569,24 @@ static void handleCommand(String str) {
 
 // ─── Telnet init ──────────────────────────────────────────────────────────────
 
+static void printHelp() {
+    telnet.println("\n--- Milkwarden v" FIRMWARE_VERSION " ---");
+    telnet.println("MEASUREMENT  : start | stop | tare | samples <n>");
+    telnet.println("CALIBRATION  : cal_tare | cal_weight <g> | calib <factor> | factor");
+    telnet.println("CORNER CORR  : corner_test <FL|FR|BL|BR> | corner_report | corner_clear");
+    telnet.println("AUTO-ZERO    : autozero on|off | az_thr <g> | az_time <ms>");
+    telnet.println("DIAGNOSTICS  : diag | raw [n] | noise [n] | gain <128|64|32> | wiring");
+    telnet.println("RFID         : rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
+    telnet.println("BEAM         : beam | beam monitor");
+    telnet.println("SESSION      : session | session reset | flow");
+    telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync | cloud test");
+    telnet.println("SYSTEM       : save | status | update | reboot | bootlog | help");
+}
+
 void initTelnet() {
     telnet.onConnect([](String ip) {
-        telnet.println("\n--- Milkwarden v" FIRMWARE_VERSION " ---");
-        telnet.println("MEASUREMENT  : start | stop | tare | samples <n>");
-        telnet.println("CALIBRATION  : cal_tare | cal_weight <g> | calib <factor> | factor");
-        telnet.println("CORNER CORR  : corner_test <FL|FR|BL|BR> | corner_report | corner_clear");
-        telnet.println("AUTO-ZERO    : autozero on|off | az_thr <g> | az_time <ms>");
-        telnet.println("DIAGNOSTICS  : diag | raw [n] | noise [n] | gain <128|64|32> | wiring");
-        telnet.println("RFID         : rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
-        telnet.println("BEAM         : beam | beam monitor");
-        telnet.println("SESSION      : session | session reset | flow");
-        telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync | cloud test");
-        telnet.println("SYSTEM       : save | status | update | reboot");
+        tlogConnect(&telnet);
+        printHelp();
         telnet.print("> ");
     });
 

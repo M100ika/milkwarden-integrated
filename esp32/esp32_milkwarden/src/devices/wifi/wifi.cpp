@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <WiFiMulti.h>
 #include <esp_wifi.h>
+#include "modules/tlog/tlog.h"
 
 static WiFiMulti         wifiMulti;
 static volatile uint8_t  activeChannel = ESPNOW_DEFAULT_CHANNEL;
@@ -14,7 +15,7 @@ static void onGotIp(WiFiEvent_t, WiFiEventInfo_t) {
     activeChannel = ch;
     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
     digitalWrite(WIFI_LED_PIN, HIGH);
-    Serial.printf("[WiFi] Connected %s  ch=%u\n",
+    tlog("[WiFi] Connected %s  ch=%u",
                   WiFi.localIP().toString().c_str(), ch);
 }
 
@@ -22,7 +23,7 @@ static void onDisconnected(WiFiEvent_t, WiFiEventInfo_t) {
     activeChannel = ESPNOW_DEFAULT_CHANNEL;
     esp_wifi_set_channel(ESPNOW_DEFAULT_CHANNEL, WIFI_SECOND_CHAN_NONE);
     digitalWrite(WIFI_LED_PIN, LOW);
-    Serial.printf("[WiFi] Disconnected, channel → %u\n", ESPNOW_DEFAULT_CHANNEL);
+    tlog("[WiFi] Disconnected, channel → %u", ESPNOW_DEFAULT_CHANNEL);
 }
 
 // ─── Background WiFiMulti task (Core 0) ───────────────────────────────────────
@@ -54,7 +55,7 @@ void initComms() {
 
     xTaskCreatePinnedToCore(wifiManagerTask, "wifiMgr", 4096, NULL, 0, NULL, 0);
 
-    Serial.printf("[WiFi] Comms init, ESP-NOW base ch=%u\n", ESPNOW_DEFAULT_CHANNEL);
+    tlog("[WiFi] Comms init, ESP-NOW base ch=%u", ESPNOW_DEFAULT_CHANNEL);
 }
 
 bool isWifiConnected() {
