@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // ─── Firmware ─────────────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION            "1.4.6.3"
+#define FIRMWARE_VERSION            "1.4.7.3"
 
 // ─── Device Identity ──────────────────────────────────────────────────────────
 #define ESP_DEVICE_ID               3          // Slave number 1-4
@@ -34,8 +34,8 @@ static const uint8_t MASTER_MAC[6] = {
 #define CLOUD_POST_TIMEOUT_MS       5000
 
 // ─── Session logic ────────────────────────────────────────────────────────────
-#define RFID_CONFIRM_COUNT          5          // identical scans to confirm tag
-#define RFID_CONFIRM_TIMEOUT_MS     30000U     // max wait for RFID before proceeding empty
+#define RFID_SCAN_COUNT             10         // total scans per batch; most-frequent tag wins
+#define RFID_START_DELAY_MS         10000U     // delay after cow detected before RFID starts
 #define WEIGHT_DROP_G               10000.0f   // 10 kg drop threshold
 #define WEIGHT_DROP_WINDOW_MS       3000U      // detection window
 #define SNAPSHOT_INTERVAL_MS        500U
@@ -86,6 +86,7 @@ struct __attribute__((packed)) SessionPacket {
 
 // ─── Beam break sensor ────────────────────────────────────────────────────────
 #define BEAM_PIN                    13   // INPUT_PULLUP; LOW=beam OK, HIGH=interrupted
+#define BEAM_DEBOUNCE_MS            50
 
 // ─── CF-MU910 RFID (UART2) ────────────────────────────────────────────────────
 #define CFMU910_RX_PIN              3

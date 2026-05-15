@@ -309,14 +309,19 @@ void cfmu910Diag(void (*printFn)(const char*)) {
 
 // ─── Background confirmation task ─────────────────────────────────────────────
 
+#define RFID_FREQ_SLOTS 8
+
 static SemaphoreHandle_t  s_mutex;
 static volatile bool      s_paused    = true;
-static volatile bool      s_scanning  = false;  // true while inside cfmu910Scan
+static volatile bool      s_scanning  = false;
 static volatile bool      s_confirmed = false;
+static volatile bool      s_batchDone = false;
 static volatile int16_t   s_rssi      = 0;
 static char               s_confirmedEpc[25] = {};
-static char               s_streakEpc[25]    = {};
-static int                s_streak           = 0;
+
+static struct { char epc[25]; int16_t rssi; uint8_t cnt; } s_freq[RFID_FREQ_SLOTS];
+static uint8_t s_freqSlots = 0;
+static uint8_t s_scansDone = 0;
 
 static void rfidBgTask(void* pv) {
     char    epc[25];
@@ -332,29 +337,45 @@ static void rfidBgTask(void* pv) {
         xSemaphoreGive(s_mutex);
 
         if (doScan) {
-            if (cfmu910Scan(epc, sizeof(epc), &rssi)) {
-                xSemaphoreTake(s_mutex, portMAX_DELAY);
-                if (strcmp(epc, s_streakEpc) == 0) {
-                    s_streak++;
-                } else {
-                    s_streak = 1;
-                    strncpy(s_streakEpc, epc, sizeof(s_streakEpc) - 1);
-                }
-                if (!s_confirmed && s_streak >= RFID_CONFIRM_COUNT) {
-                    s_confirmed = true;
-                    s_rssi      = rssi;
-                    strncpy(s_confirmedEpc, epc, sizeof(s_confirmedEpc) - 1);
-                    tlog("[RFID] Confirmed (%d): %s  RSSI=%.1f dBm",
-                                  RFID_CONFIRM_COUNT, epc, rssi / 10.0f);
-                }
-                xSemaphoreGive(s_mutex);
-            } else {
-                xSemaphoreTake(s_mutex, portMAX_DELAY);
-                s_streak = 0;
-                s_streakEpc[0] = '\0';
-                xSemaphoreGive(s_mutex);
-            }
+            bool tagFound = cfmu910Scan(epc, sizeof(epc), &rssi);
             xSemaphoreTake(s_mutex, portMAX_DELAY);
+
+            if (tagFound) {
+                bool found = false;
+                for (int i = 0; i < (int)s_freqSlots; i++) {
+                    if (strcmp(s_freq[i].epc, epc) == 0) {
+                        s_freq[i].cnt++;
+                        s_freq[i].rssi = rssi;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found && s_freqSlots < RFID_FREQ_SLOTS) {
+                    strncpy(s_freq[s_freqSlots].epc, epc, sizeof(s_freq[0].epc) - 1);
+                    s_freq[s_freqSlots].rssi = rssi;
+                    s_freq[s_freqSlots].cnt  = 1;
+                    s_freqSlots++;
+                }
+            }
+
+            s_scansDone++;
+            if (!s_confirmed && s_scansDone >= RFID_SCAN_COUNT) {
+                if (s_freqSlots > 0) {
+                    int best = 0;
+                    for (int i = 1; i < (int)s_freqSlots; i++)
+                        if (s_freq[i].cnt > s_freq[best].cnt) best = i;
+                    s_confirmed = true;
+                    s_rssi      = s_freq[best].rssi;
+                    strncpy(s_confirmedEpc, s_freq[best].epc, sizeof(s_confirmedEpc) - 1);
+                    tlog("[RFID] Confirmed (%u/%u): %s  RSSI=%.1f dBm",
+                         s_freq[best].cnt, s_scansDone, s_confirmedEpc, s_rssi / 10.0f);
+                } else {
+                    tlog("[RFID] Batch done (%u scans): no tag found", s_scansDone);
+                }
+                s_batchDone = true;
+                s_paused    = true;
+            }
+
             s_scanning = false;
             xSemaphoreGive(s_mutex);
         } else {
@@ -384,11 +405,20 @@ bool getRfidConfirmed(char* epcOut, uint8_t bufLen, int16_t* rssiOut) {
 
 void resetRfidConfirmation() {
     xSemaphoreTake(s_mutex, portMAX_DELAY);
-    s_confirmed = false;
-    s_streak = 0;
-    s_streakEpc[0] = '\0';
+    s_confirmed       = false;
+    s_batchDone       = false;
+    s_scansDone       = 0;
+    s_freqSlots       = 0;
     s_confirmedEpc[0] = '\0';
+    memset(s_freq, 0, sizeof(s_freq));
     xSemaphoreGive(s_mutex);
+}
+
+bool rfidBatchDone() {
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    bool done = s_batchDone;
+    xSemaphoreGive(s_mutex);
+    return done;
 }
 
 void rfidTaskPause() {

@@ -18,11 +18,14 @@ void    cfmu910Diag(void (*printFn)(const char*) = nullptr);
 bool    cfmu910SetPower(uint8_t dBm);
 uint8_t cfmu910GetPower();   // returns current cached value (0 if unknown)
 
-// Returns true when RFID_CONFIRM_COUNT identical scans accumulated.
+// Returns true when the most-frequent tag from the batch scan is confirmed.
 bool    getRfidConfirmed(char* epcOut, uint8_t bufLen, int16_t* rssiOut);
 
-// Reset streak counter and confirmed state.
+// Reset batch counters and confirmed state.
 void    resetRfidConfirmation();
+
+// Returns true when batch of RFID_SCAN_COUNT scans is complete (confirmed or no tag).
+bool    rfidBatchDone();
 
 // Pause/resume background scan task.
 void    rfidTaskPause();

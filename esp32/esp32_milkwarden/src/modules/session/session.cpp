@@ -106,6 +106,7 @@ void sessionTask(void* pv) {
     uint32_t     msDropCheck = 0;
     uint32_t     startTime   = 0;
     uint32_t     msRfidStart = 0;
+    bool         rfidStarted = false;
     uint8_t      lastMsgState = MSG_STATE_OK;
 
     for (;;) {
@@ -133,29 +134,35 @@ void sessionTask(void* pv) {
             if (beam == 0) {
                 resetRfidConfirmation();
                 memset(rfid, 0, sizeof(rfid));
-                msRfidStart = ms;
-                rfidTaskResume();
+                msRfidStart  = ms;
+                rfidStarted  = false;
                 state = SESSION_COW_PRESENT;
-                tlog("[Session] Cow detected → COW_PRESENT");
+                tlog("[Session] Cow detected → COW_PRESENT (RFID starts in %us)", RFID_START_DELAY_MS / 1000);
             }
             break;
 
         case SESSION_COW_PRESENT:
             if (beam == 1) {
-                rfidTaskPause();
+                if (rfidStarted) rfidTaskPause();
+                rfidStarted = false;
                 state = SESSION_IDLE;
-                tlog("[Session] Beam lost before RFID → IDLE");
+                tlog("[Session] Beam lost → IDLE");
                 break;
             }
-            {
+            if (!rfidStarted && ms - msRfidStart >= RFID_START_DELAY_MS) {
+                rfidStarted = true;
+                rfidTaskResume();
+                tlog("[Session] RFID scan started (%u reads)", RFID_SCAN_COUNT);
+            }
+            if (rfidStarted) {
                 bool confirmed = getRfidConfirmed(rfid, sizeof(rfid), &rfidRssi);
-                bool timeout   = (ms - msRfidStart) >= RFID_CONFIRM_TIMEOUT_MS;
-
-                if (confirmed || timeout) {
+                bool done      = rfidBatchDone();
+                if (confirmed || done) {
                     rfidTaskPause();
+                    rfidStarted = false;
                     if (!confirmed) {
                         memset(rfid, 0, sizeof(rfid));
-                        tlog("[Session] RFID timeout → MILKING without tag");
+                        tlog("[Session] RFID: no tag → MILKING without tag");
                     } else {
                         tlog("[Session] RFID OK: %s → MILKING", rfid);
                     }
@@ -178,12 +185,12 @@ void sessionTask(void* pv) {
                                    END_REASON_BUCKET_CHANGE);
                     resetRfidConfirmation();
                     memset(rfid, 0, sizeof(rfid));
-                    msRfidStart = ms;
+                    msRfidStart  = ms;
+                    rfidStarted  = false;
                     wInitial    = 0;
                     startTime   = now;
                     wDropCheck  = w;
                     msDropCheck = ms;
-                    rfidTaskResume();
                     state = SESSION_COW_PRESENT;
                     break;
                 }
