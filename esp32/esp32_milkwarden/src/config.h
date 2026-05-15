@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // ─── Firmware ─────────────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION            "1.4.5"
+#define FIRMWARE_VERSION            "1.4.6"
 
 // ─── Device Identity ──────────────────────────────────────────────────────────
 #define ESP_DEVICE_ID               2          // Slave number 1-4
