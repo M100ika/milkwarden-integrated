@@ -4,11 +4,23 @@
 #include <WiFi.h>
 #include "modules/tlog/tlog.h"
 
+static uint32_t s_lastFailLog  = 0;
+static uint32_t s_failStreak   = 0;
+
 static void onSent(const uint8_t* mac, esp_now_send_status_t status) {
-    if (status != ESP_NOW_SEND_SUCCESS)
-        tlog("[ESP-NOW] Delivery failed  ch=%d  wifi=%s",
-                      WiFi.channel(),
-                      WiFi.status() == WL_CONNECTED ? "UP" : "DOWN");
+    if (status == ESP_NOW_SEND_SUCCESS) {
+        s_failStreak = 0;
+        return;
+    }
+    s_failStreak++;
+    uint32_t now = millis();
+    if (s_failStreak == 1 || now - s_lastFailLog >= 10000) {
+        tlog("[ESP-NOW] Delivery failed x%u  ch=%d  wifi=%s",
+             s_failStreak,
+             WiFi.channel(),
+             WiFi.status() == WL_CONNECTED ? "UP" : "DOWN");
+        s_lastFailLog = now;
+    }
 }
 
 void initEspNow() {
@@ -20,7 +32,7 @@ void initEspNow() {
 
     esp_now_peer_info_t peer = {};
     memcpy(peer.peer_addr, MASTER_MAC, 6);
-    peer.channel = 0;   // 0 = use current WiFi channel
+    peer.channel = ESPNOW_DEFAULT_CHANNEL;
     peer.encrypt = false;
     if (esp_now_add_peer(&peer) != ESP_OK)
         tlog("[ESP-NOW] Add peer failed — check MASTER_MAC in config.h");
