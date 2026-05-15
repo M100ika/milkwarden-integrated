@@ -6,7 +6,7 @@
 #define FIRMWARE_VERSION            "1.4.6"
 
 // ─── Device Identity ──────────────────────────────────────────────────────────
-#define ESP_DEVICE_ID               2          // Slave number 1-4
+#define ESP_DEVICE_ID               1          // Slave number 1-4
 
 // ─── WiFi credentials ─────────────────────────────────────────────────────────
 struct WifiCredential { const char* ssid; const char* password; };
