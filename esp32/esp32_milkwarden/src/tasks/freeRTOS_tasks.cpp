@@ -10,7 +10,7 @@ void startAllTasks() {
 
     // Core 0: session state machine + 500 ms snapshot sender
     xTaskCreatePinnedToCore(
-        sessionTask, "session", 4096, NULL, 1, NULL, 0);
+        sessionTask, "session", 10240, NULL, 1, NULL, 0);
 
     // Core 0: background RFID scanning with confirmation logic
     startRfidTask();

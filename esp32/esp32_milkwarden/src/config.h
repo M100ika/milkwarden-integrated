@@ -3,7 +3,8 @@
 #include <stdint.h>
 
 // ─── Firmware ─────────────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION            "1.4.7.3"
+#define FIRMWARE_VERSION            "1.4.8.3"
+#define BOOTLOG_ENABLED             0          // 1 = show boot log on telnet connect, 0 = off
 
 // ─── Device Identity ──────────────────────────────────────────────────────────
 #define ESP_DEVICE_ID               3          // Slave number 1-4

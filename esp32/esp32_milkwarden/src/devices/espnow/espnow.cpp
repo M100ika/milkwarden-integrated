@@ -14,7 +14,7 @@ static void onSent(const uint8_t* mac, esp_now_send_status_t status) {
     }
     s_failStreak++;
     uint32_t now = millis();
-    if (s_failStreak == 1 || now - s_lastFailLog >= 10000) {
+    if (s_failStreak >= 3 || now - s_lastFailLog >= 10000) {
         tlog("[ESP-NOW] Delivery failed x%u  ch=%d  wifi=%s",
              s_failStreak,
              WiFi.channel(),

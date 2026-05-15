@@ -563,7 +563,11 @@ static void handleCommand(String str) {
         }
 
     } else if (str == "bootlog") {
+#if BOOTLOG_ENABLED
         tlogDump(&telnet);
+#else
+        telnet.println("[Bootlog] Disabled (BOOTLOG_ENABLED=0 in config.h)");
+#endif
 
     } else if (str == "help") {
         printHelp();
