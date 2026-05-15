@@ -32,7 +32,7 @@ void initEspNow() {
 
     esp_now_peer_info_t peer = {};
     memcpy(peer.peer_addr, MASTER_MAC, 6);
-    peer.channel = ESPNOW_DEFAULT_CHANNEL;
+    peer.channel = 0;   // 0 = follow current WiFi channel
     peer.encrypt = false;
     if (esp_now_add_peer(&peer) != ESP_OK)
         tlog("[ESP-NOW] Add peer failed — check MASTER_MAC in config.h");
