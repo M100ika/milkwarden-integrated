@@ -35,6 +35,24 @@ void saveSettings() {
     tlog("[NVS] Settings saved.");
 }
 
+// ─── Device ID ───────────────────────────────────────────────────────────────
+
+uint8_t getDeviceId() {
+    Preferences p;
+    p.begin("device", true);
+    uint8_t id = p.getUChar("id", 0);
+    p.end();
+    return id;
+}
+
+void setDeviceId(uint8_t id) {
+    Preferences p;
+    p.begin("device", false);
+    p.putUChar("id", id);
+    p.end();
+    tlog("[NVS] Device ID saved: %u", id);
+}
+
 // ─── SPIFFS / LittleFS config.ini reader ─────────────────────────────────────
 //
 // Reads /config.ini from LittleFS and overrides NVS-loaded values.

@@ -7,6 +7,7 @@
 #include "modules/cloud/cloud.h"
 #include "modules/ntp/ntp.h"
 #include "modules/tlog/tlog.h"
+#include "modules/storage/nvs_manager.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
@@ -30,7 +31,7 @@ static void publishSnapshot(SessionState state, const char* rfid,
                              uint8_t& lastMsgState) {
     SnapshotPacket pkt = {};
     pkt.type         = PKT_TYPE_SNAPSHOT;
-    pkt.esp_id       = ESP_DEVICE_ID;
+    pkt.esp_id       = getDeviceId();
     pkt.ip_addr      = getIP();
     strncpy(pkt.rfid_tag, rfid, sizeof(pkt.rfid_tag) - 1);
     
@@ -50,7 +51,7 @@ static void publishSession(const char* rfid,
                            uint8_t reason) {
     SessionPacket pkt = {};
     pkt.type           = PKT_TYPE_SESSION;
-    pkt.esp_id         = ESP_DEVICE_ID;
+    pkt.esp_id         = getDeviceId();
     pkt.ip_addr        = getIP();
     strncpy(pkt.rfid_tag, rfid, sizeof(pkt.rfid_tag) - 1);
     pkt.weight_initial = wInit;
@@ -181,7 +182,7 @@ void sessionTask(void* pv) {
                 if (wDropCheck - w > WEIGHT_DROP_G) {
                     tlog("[Session] Weight drop %.0f→%.0f g → BUCKET CHANGE",
                                   wDropCheck, w);
-                    publishSession(rfid, wInitial, w, startTime, now,
+                    publishSession(rfid, wInitial, wDropCheck, startTime, now,
                                    END_REASON_BUCKET_CHANGE);
                     resetRfidConfirmation();
                     memset(rfid, 0, sizeof(rfid));

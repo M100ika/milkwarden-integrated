@@ -317,6 +317,22 @@ static void handleCommand(String str) {
         noiseTest(n);
 
     // ── System ────────────────────────────────────────────────────────────
+    } else if (str == "devid") {
+        uint8_t id = getDeviceId();
+        if (id == 0)
+            telnet.println("[Device] ID not set. Use: setid <1-4>");
+        else
+            telnet.printf("[Device] ID: %u\n", id);
+
+    } else if (str.startsWith("setid ")) {
+        int id = str.substring(6).toInt();
+        if (id < 1 || id > 4) {
+            telnet.println("[Device] Valid range: 1..4");
+        } else {
+            setDeviceId((uint8_t)id);
+            telnet.printf("[Device] ID set to %d. Reboot to apply.\n", id);
+        }
+
     } else if (str == "save") {
         calibration_offset = scale.get_offset();
         saveSettings();
@@ -507,7 +523,7 @@ static void handleCommand(String str) {
     } else if (str == "espnow test") {
         SnapshotPacket pkt = {};
         pkt.type         = PKT_TYPE_SNAPSHOT;
-        pkt.esp_id       = ESP_DEVICE_ID;
+        pkt.esp_id       = getDeviceId();
         pkt.ip_addr      = (uint32_t)WiFi.localIP();
         strncpy(pkt.rfid_tag, "TEST", sizeof(pkt.rfid_tag) - 1);
         pkt.beam_state   = readBeam();
@@ -522,7 +538,7 @@ static void handleCommand(String str) {
         telnet.println("[Cloud] Sending test session to Supabase...");
         SessionPacket pkt = {};
         pkt.type           = PKT_TYPE_SESSION;
-        pkt.esp_id         = ESP_DEVICE_ID;
+        pkt.esp_id         = getDeviceId();
         pkt.ip_addr        = (uint32_t)WiFi.localIP();
         strncpy(pkt.rfid_tag, "TEST_TAG_TELNET", sizeof(pkt.rfid_tag) - 1);
         pkt.weight_initial = 0.0f;
@@ -593,6 +609,7 @@ static void printHelp() {
     telnet.println("SESSION      : session | session reset | flow");
     telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync | cloud test");
     telnet.println("SYSTEM       : save | status | update | reboot | bootlog | help");
+    telnet.println("DEVICE       : devid | setid <1-4>");
 }
 
 void initTelnet() {

@@ -35,10 +35,10 @@ int sendToCloud(const SessionPacket& pkt) {
     char body[256];
     snprintf(body, sizeof(body),
         "{\"esp_id\":%u,\"rfid\":\"%s\","
-        "\"weight_initial\":%.3f,\"weight_final\":%.3f,"
+        "\"weight_initial\":%.1f,\"weight_final\":%.1f,"
         "\"start_time\":%lu,\"end_time\":%lu,\"end_reason\":%u}",
         pkt.esp_id, pkt.rfid_tag,
-        pkt.weight_initial, pkt.weight_final,
+        pkt.weight_initial / 1000.0f, pkt.weight_final / 1000.0f,
         (unsigned long)pkt.start_time,
         (unsigned long)pkt.end_time,
         pkt.end_reason);
