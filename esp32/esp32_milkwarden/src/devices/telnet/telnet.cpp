@@ -357,6 +357,14 @@ static void handleCommand(String str) {
         ESP.restart();
 
     // ── RFID ──────────────────────────────────────────────────────────────
+    } else if (str == "rfid stop") {
+        rfidTaskPause();
+        telnet.println("[RFID] Background scan stopped. Use 'rfid start' to resume.");
+
+    } else if (str == "rfid start") {
+        rfidTaskResume();
+        telnet.println("[RFID] Background scan resumed.");
+
     } else if (str == "rfid scan") {
         rfidTaskPause();
         telnet.println("[RFID] Scanning (3 s)...");
@@ -576,7 +584,7 @@ static void printHelp() {
     telnet.println("CORNER CORR  : corner_test <FL|FR|BL|BR> | corner_report | corner_clear");
     telnet.println("AUTO-ZERO    : autozero on|off | az_thr <g> | az_time <ms>");
     telnet.println("DIAGNOSTICS  : diag | raw [n] | noise [n] | gain <128|64|32> | wiring");
-    telnet.println("RFID         : rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
+    telnet.println("RFID         : rfid start | rfid stop | rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
     telnet.println("BEAM         : beam | beam monitor");
     telnet.println("SESSION      : session | session reset | flow");
     telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync | cloud test");
