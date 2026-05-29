@@ -21,6 +21,7 @@ static const WifiCredential WIFI_CREDENTIALS[] = {
 
 // ─── ESP-NOW ──────────────────────────────────────────────────────────────────
 #define ESPNOW_DEFAULT_CHANNEL      1
+#define ESPNOW_LOG_ENABLED  0
 // Update to the actual MAC of the Master ESP32 before flashing
 static const uint8_t MASTER_MAC[6] = {
   0xEC, 0xE3, 0x34, 0x46, 0xD1, 0xA4

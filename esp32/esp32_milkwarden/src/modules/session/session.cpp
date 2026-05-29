@@ -106,6 +106,7 @@ void sessionTask(void* pv) {
     float        wDropCheck  = 0;
     uint32_t     msDropCheck = 0;
     uint32_t     startTime   = 0;
+    uint32_t     msStart     = 0;
     uint32_t     msRfidStart = 0;
     bool         rfidStarted = false;
     uint8_t      lastMsgState = MSG_STATE_OK;
@@ -169,6 +170,7 @@ void sessionTask(void* pv) {
                     }
                     wInitial    = w;
                     startTime   = now;
+                    msStart     = ms;
                     wDropCheck  = w;
                     msDropCheck = ms;
                     state = SESSION_MILKING;
@@ -182,7 +184,8 @@ void sessionTask(void* pv) {
                 if (wDropCheck - w > WEIGHT_DROP_G) {
                     tlog("[Session] Weight drop %.0f→%.0f g → BUCKET CHANGE",
                                   wDropCheck, w);
-                    publishSession(rfid, wInitial, wDropCheck, startTime, now,
+                    publishSession(rfid, wInitial, wDropCheck, startTime,
+                                   startTime + (ms - msStart) / 1000,
                                    END_REASON_BUCKET_CHANGE);
                     resetRfidConfirmation();
                     memset(rfid, 0, sizeof(rfid));
@@ -190,6 +193,7 @@ void sessionTask(void* pv) {
                     rfidStarted  = false;
                     wInitial    = 0;
                     startTime   = now;
+                    msStart     = ms;
                     wDropCheck  = w;
                     msDropCheck = ms;
                     state = SESSION_COW_PRESENT;
@@ -202,7 +206,8 @@ void sessionTask(void* pv) {
             // Cow left
             if (beam == 1) {
                 tlog("[Session] Beam open → SESSION END");
-                publishSession(rfid, wInitial, w, startTime, now,
+                publishSession(rfid, wInitial, w, startTime,
+                               startTime + (ms - msStart) / 1000,
                                END_REASON_COW_LEFT);
                 memset(rfid, 0, sizeof(rfid));
                 wInitial  = 0;

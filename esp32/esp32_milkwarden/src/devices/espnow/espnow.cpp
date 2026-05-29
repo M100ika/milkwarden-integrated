@@ -14,11 +14,13 @@ static void onSent(const uint8_t* mac, esp_now_send_status_t status) {
     }
     s_failStreak++;
     uint32_t now = millis();
-    if (s_failStreak >= 3 || now - s_lastFailLog >= 10000) {
+    if (now - s_lastFailLog >= 10000) {
+#if ESPNOW_LOG_ENABLED
         tlog("[ESP-NOW] Delivery failed x%u  ch=%d  wifi=%s",
              s_failStreak,
              WiFi.channel(),
              WiFi.status() == WL_CONNECTED ? "UP" : "DOWN");
+#endif
         s_lastFailLog = now;
     }
 }
