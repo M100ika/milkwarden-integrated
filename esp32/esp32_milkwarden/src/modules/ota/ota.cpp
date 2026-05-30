@@ -12,10 +12,24 @@ void startOTA() {
     client.setHandshakeTimeout(30);
 
     httpUpdate.rebootOnUpdate(false);
-    httpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    httpUpdate.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+
+    httpUpdate.onProgress([](int current, int total) {
+        if (total <= 0) return;
+        int pct    = (current * 100) / total;
+        int filled = pct / 5;
+        char bar[21] = {};
+        for (int i = 0; i < 20; i++) {
+            if      (i < filled)  bar[i] = '=';
+            else if (i == filled) bar[i] = '>';
+            else                  bar[i] = ' ';
+        }
+        telnet.printf("\r[OTA] [%s] %3d%%  %d / %d B", bar, pct, current, total);
+    });
 
     t_httpUpdate_return ret = httpUpdate.update(client, OTA_FIRMWARE_URL);
 
+    telnet.println();
     switch (ret) {
         case HTTP_UPDATE_FAILED:
             telnet.printf("[OTA] Failed! Error (%d): %s\n",

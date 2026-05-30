@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // ─── Firmware ─────────────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION            "1.4.9.4"
+#define FIRMWARE_VERSION            "1.4.9.5"
 #define BOOTLOG_ENABLED             0          // 1 = show boot log on telnet connect, 0 = off
 
 // ─── WiFi credentials ─────────────────────────────────────────────────────────
