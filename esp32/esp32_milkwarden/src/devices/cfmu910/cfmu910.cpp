@@ -87,6 +87,10 @@ static bool parseTagPacket(const uint8_t* buf, uint8_t len,
     if (buf[0] != 0xCF) return false;
     if (buf[5] != 0x00) return false;
 
+    uint16_t expected = crc16(buf, len - 2);
+    uint16_t actual   = ((uint16_t)buf[len - 2] << 8) | buf[len - 1];
+    if (expected != actual) return false;
+
     rssi   = (int16_t)((buf[6] << 8) | buf[7]);
     epcLen = buf[10];
     if (epcLen == 0 || epcLen > 32)          return false;
@@ -403,6 +407,19 @@ bool getRfidConfirmed(char* epcOut, uint8_t bufLen, int16_t* rssiOut) {
     return ok;
 }
 
+bool getRfidResult(char* epcOut, uint8_t bufLen, int16_t* rssiOut, bool* batchDoneOut) {
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    bool confirmed = s_confirmed;
+    if (batchDoneOut) *batchDoneOut = s_batchDone;
+    if (confirmed) {
+        strncpy(epcOut, s_confirmedEpc, bufLen - 1);
+        epcOut[bufLen - 1] = '\0';
+        if (rssiOut) *rssiOut = s_rssi;
+    }
+    xSemaphoreGive(s_mutex);
+    return confirmed;
+}
+
 void resetRfidConfirmation() {
     xSemaphoreTake(s_mutex, portMAX_DELAY);
     s_confirmed       = false;
@@ -439,4 +456,8 @@ void rfidTaskPause() {
     }
 }
 
-void rfidTaskResume() { s_paused = false; }
+void rfidTaskResume() {
+    xSemaphoreTake(s_mutex, portMAX_DELAY);
+    s_paused = false;
+    xSemaphoreGive(s_mutex);
+}

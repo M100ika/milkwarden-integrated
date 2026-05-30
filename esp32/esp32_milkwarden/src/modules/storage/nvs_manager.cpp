@@ -1,6 +1,7 @@
 #include "nvs_manager.h"
 #include "config.h"
 #include "devices/loadcell/loadcell.h"
+#include "devices/valve/valve.h"
 #include "modules/heartbeat/heartbeat.h"
 #include "modules/tlog/tlog.h"
 #include <Preferences.h>
@@ -18,6 +19,8 @@ void loadSettings() {
     autoZeroEnabled    = prefs.getBool( "az_en",   DEFAULT_AUTOZERO_ENABLED);
     autoZeroThreshold  = prefs.getFloat("az_thr",  DEFAULT_AUTOZERO_THRESHOLD);
     autoZeroHoldMs     = prefs.getUInt( "az_time", DEFAULT_AUTOZERO_HOLD_MS);
+    valveOpenDelayMs    = prefs.getUInt( "v_delay",  VALVE_OPEN_DELAY_MS);
+    valveOpenDurationMs = prefs.getUInt( "v_dur",    VALVE_OPEN_DURATION_MS);
     prefs.end();
     tlog("[NVS] factor=%.4f  offset=%ld  samples=%d",
                   calibration_factor, calibration_offset, num_samples);
@@ -31,6 +34,8 @@ void saveSettings() {
     prefs.putBool( "az_en",   autoZeroEnabled);
     prefs.putFloat("az_thr",  autoZeroThreshold);
     prefs.putUInt( "az_time", autoZeroHoldMs);
+    prefs.putUInt( "v_delay",  valveOpenDelayMs);
+    prefs.putUInt( "v_dur",    valveOpenDurationMs);
     prefs.end();
     tlog("[NVS] Settings saved.");
 }

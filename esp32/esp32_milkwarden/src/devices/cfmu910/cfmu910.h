@@ -21,6 +21,10 @@ uint8_t cfmu910GetPower();   // returns current cached value (0 if unknown)
 // Returns true when the most-frequent tag from the batch scan is confirmed.
 bool    getRfidConfirmed(char* epcOut, uint8_t bufLen, int16_t* rssiOut);
 
+// Atomic read of both confirmed and batchDone state — use instead of calling
+// getRfidConfirmed + rfidBatchDone separately to avoid a race condition.
+bool    getRfidResult(char* epcOut, uint8_t bufLen, int16_t* rssiOut, bool* batchDoneOut);
+
 // Reset batch counters and confirmed state.
 void    resetRfidConfirmation();
 

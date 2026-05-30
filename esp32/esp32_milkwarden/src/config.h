@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 // ─── Firmware ─────────────────────────────────────────────────────────────────
-#define FIRMWARE_VERSION            "1.4.9.3"
+#define FIRMWARE_VERSION            "1.4.9.4"
 #define BOOTLOG_ENABLED             0          // 1 = show boot log on telnet connect, 0 = off
 
 // ─── WiFi credentials ─────────────────────────────────────────────────────────
@@ -82,6 +82,12 @@ struct __attribute__((packed)) SessionPacket {
     uint8_t  end_reason;     // END_REASON_*
     uint8_t  msg_state;
 };
+
+// ─── Valve ────────────────────────────────────────────────────────────────────
+#define VALVE_ENABLED               1        // 1 = valve active, 0 = off (all calls become no-ops)
+#define VALVE_PIN                   23
+#define VALVE_OPEN_DELAY_MS         10000U   // delay after RFID confirmed before opening
+#define VALVE_OPEN_DURATION_MS      10000U   // how long valve stays open
 
 // ─── Beam break sensor ────────────────────────────────────────────────────────
 #define BEAM_PIN                    13   // INPUT_PULLUP; LOW=beam OK, HIGH=interrupted

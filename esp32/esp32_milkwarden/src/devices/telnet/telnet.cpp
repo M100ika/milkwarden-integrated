@@ -2,6 +2,7 @@
 #include "config.h"
 #include "devices/loadcell/loadcell.h"
 #include "devices/beam/beam.h"
+#include "devices/valve/valve.h"
 #include "devices/cfmu910/cfmu910.h"
 #include "devices/espnow/espnow.h"
 #include "modules/cloud/cloud.h"
@@ -478,6 +479,39 @@ static void handleCommand(String str) {
         sessionForceReset();
         telnet.println("[Session] Reset → IDLE");
 
+    // ── Valve ─────────────────────────────────────────────────────────────
+    } else if (str == "valve open") {
+        openValve();
+        telnet.println("[Valve] Opened");
+
+    } else if (str == "valve close") {
+        closeValve();
+        telnet.println("[Valve] Closed");
+
+    } else if (str.startsWith("valve delay ")) {
+        int ms = str.substring(12).toInt();
+        if (ms < 0) {
+            telnet.println("[Valve] Delay must be >= 0");
+        } else {
+            valveOpenDelayMs = (uint32_t)ms;
+            telnet.printf("[Valve] Open delay: %u ms\n", valveOpenDelayMs);
+        }
+
+    } else if (str.startsWith("valve duration ")) {
+        int ms = str.substring(15).toInt();
+        if (ms <= 0) {
+            telnet.println("[Valve] Duration must be > 0");
+        } else {
+            valveOpenDurationMs = (uint32_t)ms;
+            telnet.printf("[Valve] Open duration: %u ms\n", valveOpenDurationMs);
+        }
+
+    } else if (str == "valve status") {
+        telnet.printf("[Valve] Enabled : %s\n", VALVE_ENABLED ? "YES" : "NO");
+        telnet.printf("[Valve] Pin     : %d\n", VALVE_PIN);
+        telnet.printf("[Valve] Delay   : %u ms\n", valveOpenDelayMs);
+        telnet.printf("[Valve] Duration: %u ms\n", valveOpenDurationMs);
+
     } else if (str == "flow") {
         telnet.println("[Flow] Live monitor 60 s (Enter to stop)...");
         const char* stateStr[] = {"IDLE", "COW_PRESENT", "MILKING"};
@@ -607,6 +641,7 @@ static void printHelp() {
     telnet.println("RFID         : rfid start | rfid stop | rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
     telnet.println("BEAM         : beam | beam monitor");
     telnet.println("SESSION      : session | session reset | flow");
+    telnet.println("VALVE        : valve open | valve close | valve status | valve delay <ms> | valve duration <ms>");
     telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync | cloud test");
     telnet.println("SYSTEM       : save | status | update | reboot | bootlog | help");
     telnet.println("DEVICE       : devid | setid <1-4>");

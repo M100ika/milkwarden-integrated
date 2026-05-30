@@ -8,6 +8,7 @@
 #include "modules/ntp/ntp.h"
 #include "modules/tlog/tlog.h"
 #include "modules/storage/nvs_manager.h"
+#include "devices/valve/valve.h"
 #include <Arduino.h>
 #include <WiFi.h>
 #include <freertos/FreeRTOS.h>
@@ -109,7 +110,11 @@ void sessionTask(void* pv) {
     uint32_t     msStart     = 0;
     uint32_t     msRfidStart = 0;
     bool         rfidStarted = false;
-    uint8_t      lastMsgState = MSG_STATE_OK;
+    uint8_t      lastMsgState  = MSG_STATE_OK;
+    uint32_t     msValveTrigger = 0;
+    bool         valveArmed    = false;
+    bool         valveOpen     = false;
+    uint32_t     msValveOpened = 0;
 
     for (;;) {
         // ── Force reset from Telnet ───────────────────────────────────────────
@@ -119,6 +124,7 @@ void sessionTask(void* pv) {
             wInitial      = 0;
             startTime     = 0;
             s_forceReset  = false;
+            closeValve(); valveArmed = false; valveOpen = false;
             resetRfidConfirmation();
             rfidTaskPause();
             tlog("[Session] Force reset → IDLE");
@@ -157,8 +163,8 @@ void sessionTask(void* pv) {
                 tlog("[Session] RFID scan started (%u reads)", RFID_SCAN_COUNT);
             }
             if (rfidStarted) {
-                bool confirmed = getRfidConfirmed(rfid, sizeof(rfid), &rfidRssi);
-                bool done      = rfidBatchDone();
+                bool done      = false;
+                bool confirmed = getRfidResult(rfid, sizeof(rfid), &rfidRssi, &done);
                 if (confirmed || done) {
                     rfidTaskPause();
                     rfidStarted = false;
@@ -171,14 +177,31 @@ void sessionTask(void* pv) {
                     wInitial    = w;
                     startTime   = now;
                     msStart     = ms;
-                    wDropCheck  = w;
-                    msDropCheck = ms;
+                    wDropCheck     = w;
+                    msDropCheck    = ms;
+                    msValveTrigger = ms;
+                    valveArmed     = true;
+                    valveOpen      = false;
                     state = SESSION_MILKING;
                 }
             }
             break;
 
         case SESSION_MILKING:
+            // Valve: open after delay, close after duration
+            if (valveArmed && !valveOpen && ms - msValveTrigger >= valveOpenDelayMs) {
+                openValve();
+                valveOpen     = true;
+                msValveOpened = ms;
+                tlog("[Valve] Opened");
+            }
+            if (valveOpen && ms - msValveOpened >= valveOpenDurationMs) {
+                closeValve();
+                valveOpen  = false;
+                valveArmed = false;
+                tlog("[Valve] Closed");
+            }
+
             // Weight drop detection
             if (ms - msDropCheck >= WEIGHT_DROP_WINDOW_MS) {
                 if (wDropCheck - w > WEIGHT_DROP_G) {
@@ -196,6 +219,7 @@ void sessionTask(void* pv) {
                     msStart     = ms;
                     wDropCheck  = w;
                     msDropCheck = ms;
+                    closeValve(); valveArmed = false; valveOpen = false;
                     state = SESSION_COW_PRESENT;
                     break;
                 }
@@ -206,6 +230,7 @@ void sessionTask(void* pv) {
             // Cow left
             if (beam == 1) {
                 tlog("[Session] Beam open → SESSION END");
+                closeValve(); valveArmed = false; valveOpen = false;
                 publishSession(rfid, wInitial, w, startTime,
                                startTime + (ms - msStart) / 1000,
                                END_REASON_COW_LEFT);

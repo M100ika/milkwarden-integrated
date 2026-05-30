@@ -3,6 +3,7 @@
 #include "devices/loadcell/loadcell.h"
 #include "devices/wifi/wifi.h"
 #include "devices/beam/beam.h"
+#include "devices/valve/valve.h"
 #include "devices/cfmu910/cfmu910.h"
 #include "devices/espnow/espnow.h"
 #include "devices/telnet/telnet.h"
@@ -22,6 +23,7 @@ static void initAllSystems() {
     initComms();       // WIFI_AP_STA + WiFiMulti task + channel event handlers
     initNTP();         // register NTP server; syncs automatically once WiFi connects
     initBeam();        // beam break sensor on GPIO13
+    initValve();       // 12V valve on GPIO23 (IRLZ44N module)
     initCFMU910();     // CF-MU910 RFID reader on UART2 (waits for module boot)
     initEspNow();      // ESP-NOW init + register Master peer
     initSession();     // session state machine shared state
