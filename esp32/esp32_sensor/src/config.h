@@ -1,0 +1,51 @@
+#pragma once
+#include <stdint.h>
+
+#define FIRMWARE_VERSION            "2.0.0"
+
+// ─── Identity ─────────────────────────────────────────────────────────────────
+#define SENSOR_ID                   1   // ID this sensor reports to the slave
+#define TARGET_SLAVE_ID             1   // slave that sends commands to us
+
+// ─── ESP-NOW ──────────────────────────────────────────────────────────────────
+// Must match the WiFi channel of the router the slave is connected to.
+// Check via Telnet on slave: command "wifi" → Channel field.
+#define ESPNOW_CHANNEL              1
+
+// ─── Packet types (must match esp32_milkwarden config.h) ──────────────────────
+#define PKT_TYPE_SENSOR             0x03
+#define PKT_TYPE_CMD                0x04
+
+#define CMD_MEASURE_INIT            0x01   // take one quick measurement
+#define CMD_MEASURE_FINAL           0x02   // measure for 10 s then report
+
+struct __attribute__((packed)) CmdPacket {
+    uint8_t type;               // PKT_TYPE_CMD
+    uint8_t target_sensor_id;   // which sensor should respond
+    uint8_t cmd;                // CMD_MEASURE_INIT / CMD_MEASURE_FINAL
+};
+
+struct __attribute__((packed)) SensorPacket {
+    uint8_t  type;              // PKT_TYPE_SENSOR
+    uint8_t  target_slave_id;   // which slave should process this
+    uint16_t distance_mm;       // VL53L0X reading (2000 = out of range)
+    uint8_t  battery_pct;       // 0–100
+    uint8_t  cmd_response;      // CMD_MEASURE_INIT or CMD_MEASURE_FINAL
+};
+
+// ─── Hardware pins ────────────────────────────────────────────────────────────
+#define XSHUT_PIN                   4
+#define BUTTON_PIN                  18
+#define BAT_PIN                     34
+
+// ─── Sensor ───────────────────────────────────────────────────────────────────
+#define FILTER_WINDOW               7
+#define DISTANCE_MAX_MM             2000
+
+// ─── Battery ──────────────────────────────────────────────────────────────────
+#define BAT_SAMPLES                 15
+
+// ─── Timing ───────────────────────────────────────────────────────────────────
+#define MEASURE_FINAL_DURATION_MS   10000U   // how long to measure on CMD_MEASURE_FINAL
+#define MEASURE_SAMPLE_INTERVAL_MS  100U     // ms between samples during measurement
+#define BACKLIGHT_TIMEOUT_MS        10000U

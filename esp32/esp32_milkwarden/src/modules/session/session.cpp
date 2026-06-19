@@ -115,6 +115,7 @@ void sessionTask(void* pv) {
     bool         valveArmed    = false;
     bool         valveOpen     = false;
     uint32_t     msValveOpened = 0;
+    bool         sensorInitSent = false;
 
     for (;;) {
         // ── Force reset from Telnet ───────────────────────────────────────────
@@ -142,8 +143,9 @@ void sessionTask(void* pv) {
             if (beam == 0) {
                 resetRfidConfirmation();
                 memset(rfid, 0, sizeof(rfid));
-                msRfidStart  = ms;
-                rfidStarted  = false;
+                msRfidStart   = ms;
+                rfidStarted   = false;
+                sensorInitSent = false;
                 state = SESSION_COW_PRESENT;
                 tlog("[Session] Cow detected → COW_PRESENT (RFID starts in %us)", RFID_START_DELAY_MS / 1000);
             }
@@ -152,7 +154,8 @@ void sessionTask(void* pv) {
         case SESSION_COW_PRESENT:
             if (beam == 1) {
                 if (rfidStarted) rfidTaskPause();
-                rfidStarted = false;
+                rfidStarted    = false;
+                sensorInitSent = false;
                 state = SESSION_IDLE;
                 tlog("[Session] Beam lost → IDLE");
                 break;
@@ -161,6 +164,15 @@ void sessionTask(void* pv) {
                 rfidStarted = true;
                 rfidTaskResume();
                 tlog("[Session] RFID scan started (%u reads)", RFID_SCAN_COUNT);
+                if (!sensorInitSent) {
+                    CmdPacket sCmd = {};
+                    sCmd.type             = PKT_TYPE_CMD;
+                    sCmd.target_sensor_id = SENSOR_ID;
+                    sCmd.cmd              = CMD_MEASURE_INIT;
+                    espnowSendCmd(sCmd);
+                    sensorInitSent = true;
+                    tlog("[Session] Sensor CMD_MEASURE_INIT sent");
+                }
             }
             if (rfidStarted) {
                 bool done      = false;
@@ -212,8 +224,9 @@ void sessionTask(void* pv) {
                                    END_REASON_BUCKET_CHANGE);
                     resetRfidConfirmation();
                     memset(rfid, 0, sizeof(rfid));
-                    msRfidStart  = ms;
-                    rfidStarted  = false;
+                    msRfidStart   = ms;
+                    rfidStarted   = false;
+                    sensorInitSent = false;   // new bucket → measure initial level again
                     wInitial    = 0;
                     startTime   = now;
                     msStart     = ms;
@@ -231,6 +244,28 @@ void sessionTask(void* pv) {
             if (beam == 1) {
                 tlog("[Session] Beam open → SESSION END");
                 closeValve(); valveArmed = false; valveOpen = false;
+
+                // Request final distance measurement, wait up to SENSOR_CMD_TIMEOUT_MS
+                {
+                    CmdPacket sCmd = {};
+                    sCmd.type             = PKT_TYPE_CMD;
+                    sCmd.target_sensor_id = SENSOR_ID;
+                    sCmd.cmd              = CMD_MEASURE_FINAL;
+                    clearFinalDistanceReady();
+                    espnowSendCmd(sCmd);
+                    tlog("[Session] Sensor CMD_MEASURE_FINAL sent, waiting %us...",
+                         SENSOR_CMD_TIMEOUT_MS / 1000);
+                    uint32_t tWait = millis();
+                    while (!isFinalDistanceReady() &&
+                           millis() - tWait < SENSOR_CMD_TIMEOUT_MS) {
+                        vTaskDelay(pdMS_TO_TICKS(200));
+                    }
+                    tlog("[Session] Sensor final: %s (dist=%u mm)",
+                         isFinalDistanceReady() ? "OK" : "TIMEOUT",
+                         getDistanceFinalMm());
+                }
+                sensorInitSent = false;
+
                 publishSession(rfid, wInitial, w, startTime,
                                startTime + (ms - msStart) / 1000,
                                END_REASON_COW_LEFT);

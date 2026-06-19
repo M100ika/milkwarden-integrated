@@ -42,6 +42,24 @@ static const uint8_t MASTER_MAC[6] = {
 // ─── Packet type markers ──────────────────────────────────────────────────────
 #define PKT_TYPE_SNAPSHOT           0x01
 #define PKT_TYPE_SESSION            0x02
+#define PKT_TYPE_SENSOR             0x03
+#define PKT_TYPE_CMD                0x04
+
+// ─── Sensor commands ──────────────────────────────────────────────────────────
+#define CMD_MEASURE_INIT            0x01   // measure once (cow arrived)
+#define CMD_MEASURE_FINAL           0x02   // measure 10 s (cow left)
+
+// ID of the VL53L0X sensor paired with this slave
+#define SENSOR_ID                   1
+// How long slave waits for sensor response after CMD_MEASURE_FINAL
+#define SENSOR_CMD_TIMEOUT_MS       12000U
+
+// ─── CmdPacket — sent from slave to sensor (broadcast) ────────────────────────
+struct __attribute__((packed)) CmdPacket {
+    uint8_t type;               // PKT_TYPE_CMD
+    uint8_t target_sensor_id;   // which sensor should respond
+    uint8_t cmd;                // CMD_MEASURE_INIT / CMD_MEASURE_FINAL
+};
 
 // msg_state
 #define MSG_STATE_OK                1
@@ -55,6 +73,15 @@ static const uint8_t MASTER_MAC[6] = {
 // end_reason (SessionPacket)
 #define END_REASON_COW_LEFT         0
 #define END_REASON_BUCKET_CHANGE    1
+
+// ─── SensorPacket — received from ESP32 sensor on the canister ───────────────
+struct __attribute__((packed)) SensorPacket {
+    uint8_t  type;              // PKT_TYPE_SENSOR
+    uint8_t  target_slave_id;   // which slave should process this
+    uint16_t distance_mm;       // VL53L0X reading (2000 = out of range)
+    uint8_t  battery_pct;       // 0–100
+    uint8_t  cmd_response;      // CMD_MEASURE_INIT or CMD_MEASURE_FINAL
+};
 
 // ─── SnapshotPacket — sent every 500 ms ───────────────────────────────────────
 struct __attribute__((packed)) SnapshotPacket {
