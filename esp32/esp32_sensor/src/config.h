@@ -7,11 +7,11 @@
 #define SENSOR_TYPE_DISTANCE        1   // VL53L0X (бидон)
 #define SENSOR_TYPE_REED            2   // геркон (импульсы)
 
-#define SENSOR_TYPE                 SENSOR_TYPE_DISTANCE
+#define SENSOR_TYPE                 SENSOR_TYPE_REED
 
 // ─── Identity ─────────────────────────────────────────────────────────────────
-#define SENSOR_ID                   1   // ID this sensor reports to the slave
-#define TARGET_SLAVE_ID             1   // slave that sends commands to us
+#define SENSOR_ID                   2   // ID this sensor reports to the slave
+#define TARGET_SLAVE_ID             2   // slave that sends commands to us
 
 // ─── ESP-NOW ──────────────────────────────────────────────────────────────────
 // Must match the WiFi channel of the router the slave is connected to.
@@ -38,6 +38,17 @@ struct __attribute__((packed)) SensorPacket {
     uint8_t  battery_pct;       // 0–100
     uint8_t  cmd_response;      // CMD_MEASURE_INIT or CMD_MEASURE_FINAL
 };
+
+// ─── LCD ──────────────────────────────────────────────────────────────────────
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
+#  define LCD_I2C_ADDR              0x27
+#  define I2C_SDA                   21
+#  define I2C_SCL                   22
+#else
+#  define LCD_I2C_ADDR              0x3F
+#  define I2C_SDA                   21
+#  define I2C_SCL                   22
+#endif
 
 // ─── Hardware pins ────────────────────────────────────────────────────────────
 #define XSHUT_PIN                   4    // VL53L0X standby (DISTANCE only)

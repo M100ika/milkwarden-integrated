@@ -113,7 +113,7 @@ struct __attribute__((packed)) SessionPacket {
 // ─── Valve ────────────────────────────────────────────────────────────────────
 #define VALVE_ENABLED               1        // 1 = valve active, 0 = off (all calls become no-ops)
 #define VALVE_PIN                   23
-#define VALVE_OPEN_DELAY_MS         10000U   // delay after RFID confirmed before opening
+#define VALVE_OPEN_DELAY_MS         180000U  // 4 min delay from session start before opening
 #define VALVE_OPEN_DURATION_MS      10000U   // how long valve stays open
 
 // ─── Beam break sensor ────────────────────────────────────────────────────────

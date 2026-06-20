@@ -13,7 +13,7 @@
 static VL53L0X sensor;
 #endif
 
-static LiquidCrystal_I2C lcd(0x27, 16, 2);
+static LiquidCrystal_I2C lcd(LCD_I2C_ADDR, 16, 2);
 
 // ─── Median filter (DISTANCE only) ───────────────────────────────────────────
 #if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
@@ -72,10 +72,10 @@ static float milkVolumeLiters(uint16_t distMm) {
 static volatile uint32_t s_pulseCount = 0;
 static volatile bool     s_counting   = false;
 
-static void handleReed() {
+// Called immediately after light sleep returns — pin still LOW from reed closure
+static void onWakeReed() {
     if (!s_counting || digitalRead(REED_PIN) != LOW) return;
     s_pulseCount++;
-    // wait for contact to open, then debounce
     uint32_t t = millis();
     while (digitalRead(REED_PIN) == LOW && millis() - t < 200) delay(2);
     delay(REED_DEBOUNCE_MS);
@@ -254,6 +254,11 @@ static void goToLightSleep() {
 #endif
     esp_sleep_enable_gpio_wakeup();
     esp_light_sleep_start();
+
+#if SENSOR_TYPE == SENSOR_TYPE_REED
+    onWakeReed();   // check pin immediately while still LOW
+#endif
+
     delay(5);
 }
 
@@ -273,7 +278,7 @@ void setup() {
     pinMode(REED_PIN, INPUT_PULLUP);
 #endif
 
-    Wire.begin(21, 22);
+    Wire.begin(I2C_SDA, I2C_SCL);
     Wire.setClock(100000);
 
     lcd.init();
@@ -304,6 +309,7 @@ void setup() {
     sensorStandby();
 #endif
 #if SENSOR_TYPE == SENSOR_TYPE_REED
+    s_counting = true;   // start counting pulses immediately
     Serial.printf("[Init] Reed pin: %d  bat: %u%%\n", REED_PIN, s_batPct);
 #endif
 
@@ -325,9 +331,6 @@ void loop() {
         processCmd(cmd.cmd);
     }
 
-#if SENSOR_TYPE == SENSOR_TYPE_REED
-    handleReed();
-#endif
 
     handleButton();
 
