@@ -42,6 +42,10 @@ struct __attribute__((packed)) SensorPacket {
 #define FILTER_WINDOW               7
 #define DISTANCE_MAX_MM             2000
 
+// ─── Bidan geometry ───────────────────────────────────────────────────────────
+#define BIDAN_RADIUS_MM             150   // 30 cm diameter / 2
+#define BIDAN_HEIGHT_MM             300   // distance from sensor (lid) to empty bottom (mm)
+
 // ─── Battery ──────────────────────────────────────────────────────────────────
 #define BAT_SAMPLES                 15
 

@@ -34,7 +34,8 @@ static uint16_t medianDist() {
 
 // ─── Battery ──────────────────────────────────────────────────────────────────
 
-static uint8_t s_batPct = 0;
+static uint8_t  s_batPct     = 0;
+static uint16_t s_displayDist = DISTANCE_MAX_MM;  // last known distance for info screen
 
 static uint8_t readBatPct() {
     long sum = 0;
@@ -43,6 +44,17 @@ static uint8_t readBatPct() {
     int pct = map((int)(v * 100), 310, 415, 0, 100);
     return (uint8_t)constrain(pct, 0, 100);
 }
+
+// ─── Milk volume ──────────────────────────────────────────────────────────────
+
+static float milkVolumeLiters(uint16_t distMm) {
+    if (distMm >= DISTANCE_MAX_MM || (int)distMm >= BIDAN_HEIGHT_MM) return 0.0f;
+    int depth = BIDAN_HEIGHT_MM - (int)distMm;
+    return 3.14159f * BIDAN_RADIUS_MM * BIDAN_RADIUS_MM * (float)depth / 1000000.0f;
+}
+
+static bool     sensorInit();
+static void     sensorStandby();
 
 // ─── Button / backlight ───────────────────────────────────────────────────────
 
@@ -53,7 +65,14 @@ static bool     s_lastBtn        = HIGH;
 static void handleButton() {
     bool btn = digitalRead(BUTTON_PIN);
     if (btn == LOW && s_lastBtn == HIGH) {
-        if (!s_backlightOn) { lcd.backlight(); s_backlightOn = true; }
+        s_batPct = readBatPct();
+        if (sensorInit()) {
+            uint16_t d = sensor.readRangeSingleMillimeters();
+            s_displayDist = (!sensor.timeoutOccurred() && d < DISTANCE_MAX_MM) ? d : DISTANCE_MAX_MM;
+            sensorStandby();
+        }
+        lcd.backlight();
+        s_backlightOn    = true;
         s_backlightTimer = millis();
     }
     s_lastBtn = btn;
@@ -178,6 +197,7 @@ static void processCmd(uint8_t cmd) {
         Serial.printf("[CMD] FINAL → %u mm\n", dist);
     }
 
+    s_displayDist = dist;
     sendResult(dist, cmd);
     sensorStandby();
 }
@@ -257,12 +277,18 @@ void loop() {
     // Handle button (woke from GPIO or already awake)
     handleButton();
 
-    // Update LCD if backlight is on
+    // Update LCD if backlight is on (scenarios: button press, after CMD_FINAL)
     if (s_backlightOn) {
+        char row0[17], row1[17];
+        snprintf(row0, sizeof(row0), "Bat: %u%%          ", s_batPct);
         lcd.setCursor(0, 0);
-        lcd.print("Bat: "); lcd.print(s_batPct); lcd.print("%        ");
+        lcd.print(row0);
         lcd.setCursor(0, 1);
-        lcd.print("Sleeping...     ");
+        if (s_displayDist >= DISTANCE_MAX_MM)
+            snprintf(row1, sizeof(row1), "Milk: no data   ");
+        else
+            snprintf(row1, sizeof(row1), "Milk: %.1f L     ", milkVolumeLiters(s_displayDist));
+        lcd.print(row1);
     }
 
     // Go back to light sleep (wakes on ESP-NOW or button)
