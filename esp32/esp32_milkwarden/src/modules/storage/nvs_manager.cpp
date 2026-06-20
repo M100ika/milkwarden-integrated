@@ -106,8 +106,8 @@ void loadConfigFile() {
         String val = line.substring(eq + 1); val.trim();
 
         if (section == "scale") {
-            if      (key == "factor")  { calibration_factor = val.toFloat(); parsed++; }
-            else if (key == "samples") { num_samples = val.toInt(); parsed++; }
+            // factor is managed via NVS only (Telnet cal commands) — not overridable from file
+            if (key == "samples") { num_samples = val.toInt(); parsed++; }
 
         } else if (section == "autozero") {
             if      (key == "enabled")   { autoZeroEnabled = (val == "true" || val == "1"); parsed++; }
