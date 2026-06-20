@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <VL53L0X.h>
 #include <LiquidCrystal_I2C.h>
 #include <WiFi.h>
 #include <esp_now.h>
@@ -9,17 +8,21 @@
 #include <driver/gpio.h>
 #include "config.h"
 
-static VL53L0X           sensor;
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
+#include <VL53L0X.h>
+static VL53L0X sensor;
+#endif
+
 static LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-// ─── Median filter ────────────────────────────────────────────────────────────
+// ─── Median filter (DISTANCE only) ───────────────────────────────────────────
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
 
 static uint16_t distBuf[FILTER_WINDOW];
 static int      distBufIdx = 0;
 
 static void pushDist(uint16_t v) {
-    distBuf[distBufIdx % FILTER_WINDOW] = v;
-    distBufIdx++;
+    distBuf[distBufIdx++ % FILTER_WINDOW] = v;
 }
 
 static uint16_t medianDist() {
@@ -32,10 +35,17 @@ static uint16_t medianDist() {
     return (n > 0) ? s[n / 2] : DISTANCE_MAX_MM;
 }
 
+#endif
+
 // ─── Battery ──────────────────────────────────────────────────────────────────
 
-static uint8_t  s_batPct     = 0;
-static uint16_t s_displayDist = DISTANCE_MAX_MM;  // last known distance for info screen
+static uint8_t s_batPct = 0;
+
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
+static uint16_t s_displayVal = DISTANCE_MAX_MM;
+#else
+static uint16_t s_displayVal = 0;
+#endif
 
 static uint8_t readBatPct() {
     long sum = 0;
@@ -45,7 +55,8 @@ static uint8_t readBatPct() {
     return (uint8_t)constrain(pct, 0, 100);
 }
 
-// ─── Milk volume ──────────────────────────────────────────────────────────────
+// ─── Milk volume (DISTANCE only) ─────────────────────────────────────────────
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
 
 static float milkVolumeLiters(uint16_t distMm) {
     if (distMm >= DISTANCE_MAX_MM || (int)distMm >= BIDAN_HEIGHT_MM) return 0.0f;
@@ -53,8 +64,49 @@ static float milkVolumeLiters(uint16_t distMm) {
     return 3.14159f * BIDAN_RADIUS_MM * BIDAN_RADIUS_MM * (float)depth / 1000000.0f;
 }
 
-static bool     sensorInit();
-static void     sensorStandby();
+#endif
+
+// ─── Reed switch (REED only) ──────────────────────────────────────────────────
+#if SENSOR_TYPE == SENSOR_TYPE_REED
+
+static volatile uint32_t s_pulseCount = 0;
+static volatile bool     s_counting   = false;
+
+static void handleReed() {
+    if (!s_counting || digitalRead(REED_PIN) != LOW) return;
+    s_pulseCount++;
+    // wait for contact to open, then debounce
+    uint32_t t = millis();
+    while (digitalRead(REED_PIN) == LOW && millis() - t < 200) delay(2);
+    delay(REED_DEBOUNCE_MS);
+}
+
+#endif
+
+// ─── VL53L0X (DISTANCE only) ─────────────────────────────────────────────────
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
+
+static bool sensorInit() {
+    digitalWrite(XSHUT_PIN, HIGH);
+    delay(10);
+    sensor.setTimeout(500);
+    return sensor.init();
+}
+
+static void sensorStandby() { digitalWrite(XSHUT_PIN, LOW); }
+
+static uint16_t readFiltered(int nSamples) {
+    distBufIdx = 0;
+    for (int i = 0; i < nSamples; i++) {
+        uint16_t raw = sensor.readRangeSingleMillimeters();
+        if (sensor.timeoutOccurred() || raw > DISTANCE_MAX_MM) raw = DISTANCE_MAX_MM;
+        pushDist(raw);
+        delay(MEASURE_SAMPLE_INTERVAL_MS);
+    }
+    return medianDist();
+}
+
+#endif
 
 // ─── Button / backlight ───────────────────────────────────────────────────────
 
@@ -66,11 +118,13 @@ static void handleButton() {
     bool btn = digitalRead(BUTTON_PIN);
     if (btn == LOW && s_lastBtn == HIGH) {
         s_batPct = readBatPct();
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
         if (sensorInit()) {
             uint16_t d = sensor.readRangeSingleMillimeters();
-            s_displayDist = (!sensor.timeoutOccurred() && d < DISTANCE_MAX_MM) ? d : DISTANCE_MAX_MM;
+            s_displayVal = (!sensor.timeoutOccurred() && d < DISTANCE_MAX_MM) ? d : DISTANCE_MAX_MM;
             sensorStandby();
         }
+#endif
         lcd.backlight();
         s_backlightOn    = true;
         s_backlightTimer = millis();
@@ -80,30 +134,6 @@ static void handleButton() {
         lcd.noBacklight();
         s_backlightOn = false;
     }
-}
-
-// ─── VL53L0X ─────────────────────────────────────────────────────────────────
-
-static bool sensorInit() {
-    digitalWrite(XSHUT_PIN, HIGH);
-    delay(10);
-    sensor.setTimeout(500);
-    return sensor.init();
-}
-
-static void sensorStandby() {
-    digitalWrite(XSHUT_PIN, LOW);
-}
-
-static uint16_t readFiltered(int nSamples) {
-    distBufIdx = 0;
-    for (int i = 0; i < nSamples; i++) {
-        uint16_t raw = sensor.readRangeSingleMillimeters();
-        if (sensor.timeoutOccurred() || raw > DISTANCE_MAX_MM) raw = DISTANCE_MAX_MM;
-        pushDist(raw);
-        delay(MEASURE_SAMPLE_INTERVAL_MS);
-    }
-    return medianDist();
 }
 
 // ─── ESP-NOW ──────────────────────────────────────────────────────────────────
@@ -123,11 +153,11 @@ static void onReceive(const uint8_t*, const uint8_t* data, int len) {
     s_cmdPending = true;
 }
 
-static void sendResult(uint16_t distMm, uint8_t cmdResp) {
+static void sendResult(uint16_t value, uint8_t cmdResp) {
     SensorPacket pkt = {};
     pkt.type            = PKT_TYPE_SENSOR;
     pkt.target_slave_id = TARGET_SLAVE_ID;
-    pkt.distance_mm     = distMm;
+    pkt.distance_mm     = value;
     pkt.battery_pct     = s_batPct;
     pkt.cmd_response    = cmdResp;
     esp_now_send(BROADCAST_MAC, (const uint8_t*)&pkt, sizeof(pkt));
@@ -137,19 +167,13 @@ static void initEspNow() {
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
     esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
-
-    if (esp_now_init() != ESP_OK) {
-        Serial.println("[ESP-NOW] Init failed");
-        return;
-    }
+    if (esp_now_init() != ESP_OK) { Serial.println("[ESP-NOW] Init failed"); return; }
     esp_now_register_recv_cb(onReceive);
-
     esp_now_peer_info_t peer = {};
     memcpy(peer.peer_addr, BROADCAST_MAC, 6);
     peer.channel = ESPNOW_CHANNEL;
     peer.encrypt = false;
     esp_now_add_peer(&peer);
-
     Serial.printf("[ESP-NOW] Ready on ch%d, sensor_id=%d → slave_id=%d\n",
                   ESPNOW_CHANNEL, SENSOR_ID, TARGET_SLAVE_ID);
 }
@@ -157,25 +181,21 @@ static void initEspNow() {
 // ─── Command processing ───────────────────────────────────────────────────────
 
 static void processCmd(uint8_t cmd) {
-    if (!sensorInit()) {
-        Serial.println("[Sensor] Init failed");
-        return;
-    }
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
 
+    if (!sensorInit()) { sensorStandby(); Serial.println("[Sensor] Init failed"); return; }
     uint16_t dist = DISTANCE_MAX_MM;
 
     if (cmd == CMD_MEASURE_INIT) {
-        // Quick single measurement
         dist = readFiltered(FILTER_WINDOW);
         Serial.printf("[CMD] INIT → %u mm\n", dist);
 
     } else if (cmd == CMD_MEASURE_FINAL) {
-        // Measure for MEASURE_FINAL_DURATION_MS
         lcd.backlight();
         s_backlightOn    = true;
         s_backlightTimer = millis();
 
-        uint32_t t   = millis();
+        uint32_t t    = millis();
         uint16_t last = DISTANCE_MAX_MM;
         while (millis() - t < MEASURE_FINAL_DURATION_MS) {
             uint16_t raw = sensor.readRangeSingleMillimeters();
@@ -197,24 +217,43 @@ static void processCmd(uint8_t cmd) {
         Serial.printf("[CMD] FINAL → %u mm\n", dist);
     }
 
-    s_displayDist = dist;
+    s_displayVal = dist;
     sendResult(dist, cmd);
     sensorStandby();
+
+#elif SENSOR_TYPE == SENSOR_TYPE_REED
+
+    if (cmd == CMD_MEASURE_INIT) {
+        s_pulseCount = 0;
+        s_counting   = true;
+        Serial.println("[CMD] INIT → counting started");
+        sendResult(0, cmd);
+
+    } else if (cmd == CMD_MEASURE_FINAL) {
+        s_counting   = false;
+        uint16_t cnt = (s_pulseCount > 0xFFFF) ? 0xFFFF : (uint16_t)s_pulseCount;
+        s_displayVal = cnt;
+        lcd.backlight();
+        s_backlightOn    = true;
+        s_backlightTimer = millis();
+        Serial.printf("[CMD] FINAL → %u pulses\n", cnt);
+        sendResult(cnt, cmd);
+    }
+
+#endif
 }
 
 // ─── Sleep ────────────────────────────────────────────────────────────────────
 
 static void goToLightSleep() {
-    // Wake on ESP-NOW packet
     esp_sleep_enable_wifi_wakeup();
-
-    // Also wake on button press (GPIO LOW)
     gpio_wakeup_enable((gpio_num_t)BUTTON_PIN, GPIO_INTR_LOW_LEVEL);
+#if SENSOR_TYPE == SENSOR_TYPE_REED
+    if (s_counting)
+        gpio_wakeup_enable((gpio_num_t)REED_PIN, GPIO_INTR_LOW_LEVEL);
+#endif
     esp_sleep_enable_gpio_wakeup();
-
     esp_light_sleep_start();
-
-    // Give WiFi stack a moment to complete the receive callback
     delay(5);
 }
 
@@ -224,9 +263,15 @@ void setup() {
     Serial.begin(115200);
     analogReadResolution(12);
     analogSetPinAttenuation(BAT_PIN, ADC_11db);
-    pinMode(XSHUT_PIN, OUTPUT);
     pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
+    pinMode(XSHUT_PIN, OUTPUT);
     digitalWrite(XSHUT_PIN, LOW);
+#endif
+#if SENSOR_TYPE == SENSOR_TYPE_REED
+    pinMode(REED_PIN, INPUT_PULLUP);
+#endif
 
     Wire.begin(21, 22);
     Wire.setClock(100000);
@@ -238,12 +283,15 @@ void setup() {
     lcd.setCursor(0, 0);
     lcd.print("Sensor v"); lcd.print(FIRMWARE_VERSION);
     lcd.setCursor(0, 1);
-    lcd.print("ID:"); lcd.print(SENSOR_ID);
-    lcd.print(" ch:"); lcd.print(ESPNOW_CHANNEL);
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
+    lcd.print("ID:"); lcd.print(SENSOR_ID); lcd.print(" Dist ch:"); lcd.print(ESPNOW_CHANNEL);
+#else
+    lcd.print("ID:"); lcd.print(SENSOR_ID); lcd.print(" Reed ch:"); lcd.print(ESPNOW_CHANNEL);
+#endif
 
     s_batPct = readBatPct();
 
-    // Verify sensor works before going to sleep
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
     if (!sensorInit()) {
         lcd.clear();
         lcd.print("SENSOR ERROR!   ");
@@ -252,8 +300,12 @@ void setup() {
         while (1) delay(1000);
     }
     uint16_t testDist = sensor.readRangeSingleMillimeters();
-    Serial.printf("[Init] Test dist: %u mm  bat: %u%%\n", testDist, s_batPct);
+    Serial.printf("[Init] VL53L0X dist: %u mm  bat: %u%%\n", testDist, s_batPct);
     sensorStandby();
+#endif
+#if SENSOR_TYPE == SENSOR_TYPE_REED
+    Serial.printf("[Init] Reed pin: %d  bat: %u%%\n", REED_PIN, s_batPct);
+#endif
 
     delay(1500);
     lcd.noBacklight();
@@ -266,7 +318,6 @@ void setup() {
 // ─── Loop ─────────────────────────────────────────────────────────────────────
 
 void loop() {
-    // Process any pending command FIRST (set by ESP-NOW callback before sleep returned)
     if (s_cmdPending) {
         s_cmdPending = false;
         CmdPacket cmd;
@@ -274,23 +325,29 @@ void loop() {
         processCmd(cmd.cmd);
     }
 
-    // Handle button (woke from GPIO or already awake)
+#if SENSOR_TYPE == SENSOR_TYPE_REED
+    handleReed();
+#endif
+
     handleButton();
 
-    // Update LCD if backlight is on (scenarios: button press, after CMD_FINAL)
     if (s_backlightOn) {
         char row0[17], row1[17];
         snprintf(row0, sizeof(row0), "Bat: %u%%          ", s_batPct);
         lcd.setCursor(0, 0);
         lcd.print(row0);
         lcd.setCursor(0, 1);
-        if (s_displayDist >= DISTANCE_MAX_MM)
+#if SENSOR_TYPE == SENSOR_TYPE_DISTANCE
+        if (s_displayVal >= DISTANCE_MAX_MM)
             snprintf(row1, sizeof(row1), "Milk: no data   ");
         else
-            snprintf(row1, sizeof(row1), "Milk: %.1f L     ", milkVolumeLiters(s_displayDist));
+            snprintf(row1, sizeof(row1), "Milk: %.1f L     ", milkVolumeLiters(s_displayVal));
+#else
+        uint16_t showCnt = s_counting ? (uint16_t)s_pulseCount : s_displayVal;
+        snprintf(row1, sizeof(row1), "Cnt: %u          ", showCnt);
+#endif
         lcd.print(row1);
     }
 
-    // Go back to light sleep (wakes on ESP-NOW or button)
     goToLightSleep();
 }

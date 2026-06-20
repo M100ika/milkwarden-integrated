@@ -3,6 +3,12 @@
 
 #define FIRMWARE_VERSION            "2.0.0"
 
+// ─── Sensor type — change before flashing ─────────────────────────────────────
+#define SENSOR_TYPE_DISTANCE        1   // VL53L0X (бидон)
+#define SENSOR_TYPE_REED            2   // геркон (импульсы)
+
+#define SENSOR_TYPE                 SENSOR_TYPE_DISTANCE
+
 // ─── Identity ─────────────────────────────────────────────────────────────────
 #define SENSOR_ID                   1   // ID this sensor reports to the slave
 #define TARGET_SLAVE_ID             1   // slave that sends commands to us
@@ -34,9 +40,13 @@ struct __attribute__((packed)) SensorPacket {
 };
 
 // ─── Hardware pins ────────────────────────────────────────────────────────────
-#define XSHUT_PIN                   4
+#define XSHUT_PIN                   4    // VL53L0X standby (DISTANCE only)
 #define BUTTON_PIN                  18
 #define BAT_PIN                     34
+#define REED_PIN                    19   // геркон (REED only)
+
+// ─── Reed switch ──────────────────────────────────────────────────────────────
+#define REED_DEBOUNCE_MS            50   // ждём после размыкания (мс)
 
 // ─── Sensor ───────────────────────────────────────────────────────────────────
 #define FILTER_WINDOW               7
