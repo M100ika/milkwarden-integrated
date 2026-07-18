@@ -10,6 +10,7 @@
 struct WifiCredential { const char* ssid; const char* password; };
 static const WifiCredential WIFI_CREDENTIALS[] = {
     { "smart2",   "Kazatu2025" },
+    { "STARLINK", "" },          // open network, no password
 };
 #define WIFI_LED_PIN                2
 #define WIFI_RECONNECT_INTERVAL_MS  10000U
@@ -110,11 +111,12 @@ struct __attribute__((packed)) SessionPacket {
     uint8_t  msg_state;
 };
 
-// ─── Valve ────────────────────────────────────────────────────────────────────
+// ─── Valve (spray) ─────────────────────────────────────────────────────────────
 #define VALVE_ENABLED               1        // 1 = valve active, 0 = off (all calls become no-ops)
 #define VALVE_PIN                   23
-#define VALVE_OPEN_DELAY_MS         180000U  // 4 min delay from session start before opening
-#define VALVE_OPEN_DURATION_MS      10000U   // how long valve stays open
+#define VALVE_OPEN_DELAY_MS         180000U  // delay from cow detected (beam) before spray starts; resets if cow leaves first
+#define VALVE_OPEN_DURATION_MS      10000U   // how long spray stays on
+#define VALVE_COOLDOWN_MS           240000U  // min gap after a spray before the next one can start
 
 // ─── Beam break sensor ────────────────────────────────────────────────────────
 #define BEAM_PIN                    13   // INPUT_PULLUP; LOW=beam OK, HIGH=interrupted

@@ -111,10 +111,12 @@ void sessionTask(void* pv) {
     uint32_t     msRfidStart = 0;
     bool         rfidStarted = false;
     uint8_t      lastMsgState  = MSG_STATE_OK;
-    uint32_t     msValveTrigger = 0;
+    uint32_t     msCowPresentStart = 0;   // beam-triggered; drives spray delay
     bool         valveArmed    = false;
     bool         valveOpen     = false;
     uint32_t     msValveOpened = 0;
+    uint32_t     msValveClosedAt   = 0;   // last spray end, for cooldown
+    bool         hasSprayedBefore = false;
     bool         sensorInitSent = false;
 
     for (;;) {
@@ -146,8 +148,12 @@ void sessionTask(void* pv) {
                 msRfidStart   = ms;
                 rfidStarted   = false;
                 sensorInitSent = false;
+                msCowPresentStart = ms;
+                valveArmed    = true;
+                valveOpen     = false;
                 state = SESSION_COW_PRESENT;
-                tlog("[Session] Cow detected → COW_PRESENT (RFID starts in %us)", RFID_START_DELAY_MS / 1000);
+                tlog("[Session] Cow detected → COW_PRESENT (RFID starts in %us, spray in %us)",
+                     RFID_START_DELAY_MS / 1000, valveOpenDelayMs / 1000);
             }
             break;
 
@@ -156,8 +162,16 @@ void sessionTask(void* pv) {
                 if (rfidStarted) rfidTaskPause();
                 rfidStarted    = false;
                 sensorInitSent = false;
+                if (valveOpen) {
+                    closeValve();
+                    msValveClosedAt  = ms;
+                    hasSprayedBefore = true;
+                    tlog("[Valve] Closed (cow left early)");
+                }
+                valveArmed = false;
+                valveOpen  = false;
                 state = SESSION_IDLE;
-                tlog("[Session] Beam lost → IDLE");
+                tlog("[Session] Beam lost → IDLE (spray timer reset)");
                 break;
             }
             if (!rfidStarted && ms - msRfidStart >= RFID_START_DELAY_MS) {
@@ -191,29 +205,12 @@ void sessionTask(void* pv) {
                     msStart     = ms;
                     wDropCheck     = w;
                     msDropCheck    = ms;
-                    msValveTrigger = ms;
-                    valveArmed     = true;
-                    valveOpen      = false;
                     state = SESSION_MILKING;
                 }
             }
             break;
 
         case SESSION_MILKING:
-            // Valve: open after delay, close after duration
-            if (valveArmed && !valveOpen && ms - msValveTrigger >= valveOpenDelayMs) {
-                openValve();
-                valveOpen     = true;
-                msValveOpened = ms;
-                tlog("[Valve] Opened");
-            }
-            if (valveOpen && ms - msValveOpened >= valveOpenDurationMs) {
-                closeValve();
-                valveOpen  = false;
-                valveArmed = false;
-                tlog("[Valve] Closed");
-            }
-
             // Weight drop detection
             if (ms - msDropCheck >= WEIGHT_DROP_WINDOW_MS) {
                 if (wDropCheck - w > WEIGHT_DROP_G) {
@@ -232,7 +229,14 @@ void sessionTask(void* pv) {
                     msStart     = ms;
                     wDropCheck  = w;
                     msDropCheck = ms;
-                    closeValve(); valveArmed = false; valveOpen = false;
+                    if (valveOpen) {
+                        closeValve();
+                        valveOpen        = false;
+                        valveArmed       = false;
+                        msValveClosedAt  = ms;
+                        hasSprayedBefore = true;
+                        tlog("[Valve] Closed (bucket change)");
+                    }
                     state = SESSION_COW_PRESENT;
                     break;
                 }
@@ -243,7 +247,14 @@ void sessionTask(void* pv) {
             // Cow left
             if (beam == 1) {
                 tlog("[Session] Beam open → SESSION END");
-                closeValve(); valveArmed = false; valveOpen = false;
+                if (valveOpen) {
+                    closeValve();
+                    msValveClosedAt  = ms;
+                    hasSprayedBefore = true;
+                    tlog("[Valve] Closed (cow left)");
+                }
+                valveArmed = false;
+                valveOpen  = false;
 
                 // Request final distance measurement, wait up to SENSOR_CMD_TIMEOUT_MS
                 {
@@ -276,6 +287,24 @@ void sessionTask(void* pv) {
                 state = SESSION_IDLE;
             }
             break;
+        }
+
+        // ── Valve (spray): delay counted from cow-present, independent of RFID/MILKING sub-state ──
+        if (valveArmed && !valveOpen &&
+            ms - msCowPresentStart >= valveOpenDelayMs &&
+            (!hasSprayedBefore || ms - msValveClosedAt >= VALVE_COOLDOWN_MS)) {
+            openValve();
+            valveOpen     = true;
+            msValveOpened = ms;
+            tlog("[Valve] Opened (spray)");
+        }
+        if (valveOpen && ms - msValveOpened >= valveOpenDurationMs) {
+            closeValve();
+            valveOpen        = false;
+            valveArmed       = false;
+            msValveClosedAt  = ms;
+            hasSprayedBefore = true;
+            tlog("[Valve] Closed");
         }
 
         // ── Snapshot every 500 ms (always) ───────────────────────────────────

@@ -8,7 +8,7 @@
 struct WifiCredential { const char* ssid; const char* password; };
 static const WifiCredential WIFI_CREDENTIALS[] = {
     { "smart2",   "Kazatu2025" },
-
+    { "STARLINK", "" },          // open network, no password
 };
 #define WIFI_RECONNECT_MS       10000U
 
