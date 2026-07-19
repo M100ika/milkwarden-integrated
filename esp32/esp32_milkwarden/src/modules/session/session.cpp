@@ -123,6 +123,8 @@ void sessionTask(void* pv) {
     int          weightLogCount    = 0;
     uint32_t     msLastWeightLog   = 0;
     uint16_t     lastLoggedWeight_g = 0;
+    bool         beamClearPending  = false;   // beam==1 seen, waiting for confirmation
+    uint32_t     msBeamClearStart  = 0;
 
     for (;;) {
         // ── Force reset from Telnet ───────────────────────────────────────────
@@ -135,6 +137,7 @@ void sessionTask(void* pv) {
             closeValve(); valveArmed = false; valveOpen = false;
             resetRfidConfirmation();
             rfidTaskPause();
+            beamClearPending = false;
             tlog("[Session] Force reset → IDLE");
         }
 
@@ -142,6 +145,18 @@ void sessionTask(void* pv) {
         uint8_t  beam = readBeam();
         uint32_t now  = (uint32_t)getUnixTime();
         uint32_t ms   = millis();
+
+        // Cow-gone confirmation: beam must read "clear" continuously for
+        // COW_GONE_CONFIRM_MS before we treat it as the cow actually leaving.
+        // A brief flicker (cow shifting/moving) cancels the pending timer and
+        // the session continues untouched.
+        bool cowGoneConfirmed = false;
+        if (beam == 1) {
+            if (!beamClearPending) { beamClearPending = true; msBeamClearStart = ms; }
+            else if (ms - msBeamClearStart >= COW_GONE_CONFIRM_MS) cowGoneConfirmed = true;
+        } else {
+            beamClearPending = false;
+        }
 
         // ── State machine ─────────────────────────────────────────────────────
         switch (state) {
@@ -163,7 +178,7 @@ void sessionTask(void* pv) {
             break;
 
         case SESSION_COW_PRESENT:
-            if (beam == 1) {
+            if (cowGoneConfirmed) {
                 if (rfidStarted) rfidTaskPause();
                 rfidStarted    = false;
                 sensorInitSent = false;
@@ -274,8 +289,8 @@ void sessionTask(void* pv) {
                 msDropCheck = ms;
             }
 
-            // Cow left
-            if (beam == 1) {
+            // Cow left (confirmed — beam was clear for COW_GONE_CONFIRM_MS)
+            if (cowGoneConfirmed) {
                 tlog("[Session] Beam open → SESSION END");
                 if (valveOpen) {
                     closeValve();
