@@ -2,6 +2,7 @@
 #include "config.h"
 #include "devices/loadcell/loadcell.h"
 #include "devices/valve/valve.h"
+#include "devices/beam/beam.h"
 #include "modules/heartbeat/heartbeat.h"
 #include "modules/tlog/tlog.h"
 #include <Preferences.h>
@@ -22,6 +23,7 @@ void loadSettings() {
     valveOpenDelayMs    = prefs.getUInt( "v_delay",  VALVE_OPEN_DELAY_MS);
     valveOpenDurationMs = prefs.getUInt( "v_dur",    VALVE_OPEN_DURATION_MS);
     valveCooldownMs     = prefs.getUInt( "v_cool",   VALVE_COOLDOWN_MS);
+    cowGoneConfirmMs    = prefs.getUInt( "b_confirm", COW_GONE_CONFIRM_MS);
     prefs.end();
     tlog("[NVS] factor=%.4f  offset=%ld  samples=%d",
                   calibration_factor, calibration_offset, num_samples);
@@ -38,6 +40,7 @@ void saveSettings() {
     prefs.putUInt( "v_delay",  valveOpenDelayMs);
     prefs.putUInt( "v_dur",    valveOpenDurationMs);
     prefs.putUInt( "v_cool",   valveCooldownMs);
+    prefs.putUInt( "b_confirm", cowGoneConfirmMs);
     prefs.end();
     tlog("[NVS] Settings saved.");
 }

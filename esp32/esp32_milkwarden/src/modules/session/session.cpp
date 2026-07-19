@@ -153,7 +153,7 @@ void sessionTask(void* pv) {
         bool cowGoneConfirmed = false;
         if (beam == 1) {
             if (!beamClearPending) { beamClearPending = true; msBeamClearStart = ms; }
-            else if (ms - msBeamClearStart >= COW_GONE_CONFIRM_MS) cowGoneConfirmed = true;
+            else if (ms - msBeamClearStart >= cowGoneConfirmMs) cowGoneConfirmed = true;
         } else {
             beamClearPending = false;
         }

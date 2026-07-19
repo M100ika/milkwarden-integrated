@@ -439,7 +439,17 @@ static void handleCommand(String str) {
     // ── Beam sensor ───────────────────────────────────────────────────────
     } else if (str == "beam") {
         uint8_t b = readBeam();
-        telnet.printf("[Beam] State: %u (%s)\n", b, b ? "INTERRUPTED" : "OK");
+        telnet.printf("[Beam] State  : %u (%s)\n", b, b ? "INTERRUPTED" : "OK");
+        telnet.printf("[Beam] Confirm: %u ms\n", cowGoneConfirmMs);
+
+    } else if (str.startsWith("beam confirm ")) {
+        int ms = str.substring(13).toInt();
+        if (ms < 0) {
+            telnet.println("[Beam] Confirm must be >= 0");
+        } else {
+            cowGoneConfirmMs = (uint32_t)ms;
+            telnet.printf("[Beam] Cow-gone confirm: %u ms\n", cowGoneConfirmMs);
+        }
 
     } else if (str == "beam monitor") {
         telnet.println("[Beam] Monitoring 10 s (Ctrl+C to stop)...");
@@ -650,7 +660,7 @@ static void printHelp() {
     telnet.println("AUTO-ZERO    : autozero on|off | az_thr <g> | az_time <ms>");
     telnet.println("DIAGNOSTICS  : diag | raw [n] | noise [n] | gain <128|64|32> | wiring");
     telnet.println("RFID         : rfid start | rfid stop | rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
-    telnet.println("BEAM         : beam | beam monitor");
+    telnet.println("BEAM         : beam | beam monitor | beam confirm <ms>");
     telnet.println("SESSION      : session | session reset | flow");
     telnet.println("VALVE        : valve open | valve close | valve status | valve delay <ms> | valve duration <ms> | valve cooldown <ms>");
     telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync | cloud test");

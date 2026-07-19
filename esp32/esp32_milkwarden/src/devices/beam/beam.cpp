@@ -2,6 +2,8 @@
 #include "config.h"
 #include <Arduino.h>
 
+uint32_t cowGoneConfirmMs = COW_GONE_CONFIRM_MS;
+
 void initBeam() {
     pinMode(BEAM_PIN, INPUT_PULLUP);
 }
