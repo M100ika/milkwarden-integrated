@@ -49,7 +49,8 @@ static void publishSnapshot(SessionState state, const char* rfid,
 static void publishSession(const char* rfid,
                            float wInit, float wFinal,
                            uint32_t tStart, uint32_t tEnd,
-                           uint8_t reason) {
+                           uint8_t reason,
+                           const WeightSample* log, int logCount) {
     SessionPacket pkt = {};
     pkt.type           = PKT_TYPE_SESSION;
     pkt.esp_id         = getDeviceId();
@@ -61,12 +62,12 @@ static void publishSession(const char* rfid,
     pkt.end_time       = tEnd;
     pkt.end_reason     = reason;
 
-    bool ok      = espnowSendSession(pkt);
+    bool ok      = espnowSendSession(pkt);   // unchanged: no weight log over ESP-NOW
     pkt.msg_state = ok ? MSG_STATE_OK : MSG_STATE_FAIL;
 
-    int cloudCode = sendToCloud(pkt);
-    tlog("[Session] SessionPacket sent: rfid=%s wi=%.0f wf=%.0f reason=%u espnow=%d cloud=%d",
-                  rfid, wInit, wFinal, reason, ok, cloudCode);
+    int cloudCode = sendToCloud(pkt, log, logCount);
+    tlog("[Session] SessionPacket sent: rfid=%s wi=%.0f wf=%.0f reason=%u espnow=%d cloud=%d log=%d",
+                  rfid, wInit, wFinal, reason, ok, cloudCode, logCount);
 }
 
 static void updateInfo(SessionState state, const char* rfid,
@@ -118,6 +119,10 @@ void sessionTask(void* pv) {
     uint32_t     msValveClosedAt   = 0;   // last spray end, for cooldown
     bool         hasSprayedBefore = false;
     bool         sensorInitSent = false;
+    WeightSample weightLog[WEIGHT_LOG_MAX_SAMPLES];
+    int          weightLogCount    = 0;
+    uint32_t     msLastWeightLog   = 0;
+    uint16_t     lastLoggedWeight_g = 0;
 
     for (;;) {
         // ── Force reset from Telnet ───────────────────────────────────────────
@@ -205,12 +210,36 @@ void sessionTask(void* pv) {
                     msStart     = ms;
                     wDropCheck     = w;
                     msDropCheck    = ms;
+
+                    // Seed weight log with the starting sample (t=0)
+                    lastLoggedWeight_g = (uint16_t)(w > 0 ? w : 0);
+                    weightLog[0].weight_g   = lastLoggedWeight_g;
+                    weightLog[0].t_offset_s = 0;
+                    weightLogCount  = 1;
+                    msLastWeightLog = ms;
+
                     state = SESSION_MILKING;
                 }
             }
             break;
 
         case SESSION_MILKING:
+            // Weight log: sample every WEIGHT_LOG_INTERVAL_MS, skip if the change since
+            // the last logged sample (either direction) is below WEIGHT_LOG_DEDUP_G.
+            // Cloud-only — never sent over ESP-NOW.
+            if (ms - msLastWeightLog >= WEIGHT_LOG_INTERVAL_MS) {
+                msLastWeightLog = ms;
+                uint16_t wG   = (uint16_t)(w > 0 ? w : 0);
+                uint16_t diff = (wG > lastLoggedWeight_g) ? (wG - lastLoggedWeight_g)
+                                                           : (lastLoggedWeight_g - wG);
+                if (diff >= WEIGHT_LOG_DEDUP_G && weightLogCount < WEIGHT_LOG_MAX_SAMPLES) {
+                    weightLog[weightLogCount].weight_g   = wG;
+                    weightLog[weightLogCount].t_offset_s = (uint16_t)((ms - msStart) / 1000);
+                    weightLogCount++;
+                    lastLoggedWeight_g = wG;
+                }
+            }
+
             // Weight drop detection
             if (ms - msDropCheck >= WEIGHT_DROP_WINDOW_MS) {
                 if (wDropCheck - w > WEIGHT_DROP_G) {
@@ -218,7 +247,8 @@ void sessionTask(void* pv) {
                                   wDropCheck, w);
                     publishSession(rfid, wInitial, wDropCheck, startTime,
                                    startTime + (ms - msStart) / 1000,
-                                   END_REASON_BUCKET_CHANGE);
+                                   END_REASON_BUCKET_CHANGE,
+                                   weightLog, weightLogCount);
                     resetRfidConfirmation();
                     memset(rfid, 0, sizeof(rfid));
                     msRfidStart   = ms;
@@ -279,7 +309,8 @@ void sessionTask(void* pv) {
 
                 publishSession(rfid, wInitial, w, startTime,
                                startTime + (ms - msStart) / 1000,
-                               END_REASON_COW_LEFT);
+                               END_REASON_COW_LEFT,
+                               weightLog, weightLogCount);
                 memset(rfid, 0, sizeof(rfid));
                 wInitial  = 0;
                 startTime = 0;
@@ -292,7 +323,7 @@ void sessionTask(void* pv) {
         // ── Valve (spray): delay counted from cow-present, independent of RFID/MILKING sub-state ──
         if (valveArmed && !valveOpen &&
             ms - msCowPresentStart >= valveOpenDelayMs &&
-            (!hasSprayedBefore || ms - msValveClosedAt >= VALVE_COOLDOWN_MS)) {
+            (!hasSprayedBefore || ms - msValveClosedAt >= valveCooldownMs)) {
             openValve();
             valveOpen     = true;
             msValveOpened = ms;

@@ -40,6 +40,18 @@ static const uint8_t MASTER_MAC[6] = {
 #define WEIGHT_DROP_WINDOW_MS       3000U      // detection window
 #define SNAPSHOT_INTERVAL_MS        500U
 
+// ─── Weight log (cloud-only curve, for server-side post-processing) ───────────
+#define WEIGHT_LOG_INTERVAL_MS      10000U     // sample cadence during milking
+#define WEIGHT_LOG_DEDUP_G          50         // skip sample if |change| since last logged < this
+#define WEIGHT_LOG_MAX_SAMPLES      90         // fixed cap per bucket (~15 min worst case @ 10s)
+
+// ─── WeightSample — accumulated during MILKING, sent only via HTTPS to cloud ──
+// Not part of any ESP-NOW packet; kept out of SessionPacket on purpose.
+struct WeightSample {
+    uint16_t weight_g;      // quantized to whole grams
+    uint16_t t_offset_s;    // seconds since this bucket's milking started
+};
+
 // ─── Packet type markers ──────────────────────────────────────────────────────
 #define PKT_TYPE_SNAPSHOT           0x01
 #define PKT_TYPE_SESSION            0x02

@@ -21,6 +21,7 @@ void loadSettings() {
     autoZeroHoldMs     = prefs.getUInt( "az_time", DEFAULT_AUTOZERO_HOLD_MS);
     valveOpenDelayMs    = prefs.getUInt( "v_delay",  VALVE_OPEN_DELAY_MS);
     valveOpenDurationMs = prefs.getUInt( "v_dur",    VALVE_OPEN_DURATION_MS);
+    valveCooldownMs     = prefs.getUInt( "v_cool",   VALVE_COOLDOWN_MS);
     prefs.end();
     tlog("[NVS] factor=%.4f  offset=%ld  samples=%d",
                   calibration_factor, calibration_offset, num_samples);
@@ -36,6 +37,7 @@ void saveSettings() {
     prefs.putUInt( "az_time", autoZeroHoldMs);
     prefs.putUInt( "v_delay",  valveOpenDelayMs);
     prefs.putUInt( "v_dur",    valveOpenDurationMs);
+    prefs.putUInt( "v_cool",   valveCooldownMs);
     prefs.end();
     tlog("[NVS] Settings saved.");
 }

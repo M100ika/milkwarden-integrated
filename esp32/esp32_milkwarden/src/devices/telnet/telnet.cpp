@@ -506,11 +506,21 @@ static void handleCommand(String str) {
             telnet.printf("[Valve] Open duration: %u ms\n", valveOpenDurationMs);
         }
 
+    } else if (str.startsWith("valve cooldown ")) {
+        int ms = str.substring(15).toInt();
+        if (ms < 0) {
+            telnet.println("[Valve] Cooldown must be >= 0");
+        } else {
+            valveCooldownMs = (uint32_t)ms;
+            telnet.printf("[Valve] Cooldown: %u ms\n", valveCooldownMs);
+        }
+
     } else if (str == "valve status") {
         telnet.printf("[Valve] Enabled : %s\n", VALVE_ENABLED ? "YES" : "NO");
         telnet.printf("[Valve] Pin     : %d\n", VALVE_PIN);
         telnet.printf("[Valve] Delay   : %u ms\n", valveOpenDelayMs);
         telnet.printf("[Valve] Duration: %u ms\n", valveOpenDurationMs);
+        telnet.printf("[Valve] Cooldown: %u ms\n", valveCooldownMs);
 
     } else if (str == "flow") {
         telnet.println("[Flow] Live monitor 60 s (Enter to stop)...");
@@ -581,7 +591,8 @@ static void handleCommand(String str) {
         pkt.end_time       = (uint32_t)getUnixTime();
         pkt.end_reason     = END_REASON_COW_LEFT;
         pkt.msg_state      = MSG_STATE_OK;
-        int code = sendToCloud(pkt);
+        WeightSample testLog[3] = {{0, 0}, {600, 10}, {1234, 20}};
+        int code = sendToCloud(pkt, testLog, 3);
         if (code >= 200 && code < 300)
             telnet.printf("[Cloud] HTTP %d OK — check Supabase table\n", code);
         else if (code == 0)
@@ -641,7 +652,7 @@ static void printHelp() {
     telnet.println("RFID         : rfid start | rfid stop | rfid scan | rfid monitor | rfid status | rfid diag | rfid power [dBm]");
     telnet.println("BEAM         : beam | beam monitor");
     telnet.println("SESSION      : session | session reset | flow");
-    telnet.println("VALVE        : valve open | valve close | valve status | valve delay <ms> | valve duration <ms>");
+    telnet.println("VALVE        : valve open | valve close | valve status | valve delay <ms> | valve duration <ms> | valve cooldown <ms>");
     telnet.println("NETWORK      : wifi | espnow status | espnow test | time | ntp sync | cloud test");
     telnet.println("SYSTEM       : save | status | update | reboot | bootlog | help");
     telnet.println("DEVICE       : devid | setid <1-4>");

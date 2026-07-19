@@ -4,6 +4,7 @@
 
 uint32_t valveOpenDelayMs    = VALVE_OPEN_DELAY_MS;
 uint32_t valveOpenDurationMs = VALVE_OPEN_DURATION_MS;
+uint32_t valveCooldownMs     = VALVE_COOLDOWN_MS;
 
 void initValve() {
 #if VALVE_ENABLED
