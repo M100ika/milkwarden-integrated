@@ -125,6 +125,8 @@ void sessionTask(void* pv) {
     uint16_t     lastLoggedWeight_g = 0;
     bool         beamClearPending  = false;   // beam==1 seen, waiting for confirmation
     uint32_t     msBeamClearStart  = 0;
+    bool         beamBlockPending  = false;   // beam==0 seen (IDLE), waiting for confirmation
+    uint32_t     msBeamBlockStart  = 0;
 
     for (;;) {
         // ── Force reset from Telnet ───────────────────────────────────────────
@@ -138,6 +140,7 @@ void sessionTask(void* pv) {
             resetRfidConfirmation();
             rfidTaskPause();
             beamClearPending = false;
+            beamBlockPending = false;
             tlog("[Session] Force reset → IDLE");
         }
 
@@ -158,11 +161,22 @@ void sessionTask(void* pv) {
             beamClearPending = false;
         }
 
+        // Cow-arrival confirmation: beam must read "blocked" continuously for
+        // cowArriveConfirmMs before a new session actually starts (only matters
+        // from IDLE — once present, beam==0 is the steady, expected state).
+        bool cowPresentConfirmed = false;
+        if (beam == 0) {
+            if (!beamBlockPending) { beamBlockPending = true; msBeamBlockStart = ms; }
+            else if (ms - msBeamBlockStart >= cowArriveConfirmMs) cowPresentConfirmed = true;
+        } else {
+            beamBlockPending = false;
+        }
+
         // ── State machine ─────────────────────────────────────────────────────
         switch (state) {
 
         case SESSION_IDLE:
-            if (beam == 0) {
+            if (cowPresentConfirmed) {
                 resetRfidConfirmation();
                 memset(rfid, 0, sizeof(rfid));
                 msRfidStart   = ms;

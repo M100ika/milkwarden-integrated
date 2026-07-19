@@ -24,6 +24,7 @@ void loadSettings() {
     valveOpenDurationMs = prefs.getUInt( "v_dur",    VALVE_OPEN_DURATION_MS);
     valveCooldownMs     = prefs.getUInt( "v_cool",   VALVE_COOLDOWN_MS);
     cowGoneConfirmMs    = prefs.getUInt( "b_confirm", COW_GONE_CONFIRM_MS);
+    cowArriveConfirmMs  = prefs.getUInt( "b_arrive",  COW_ARRIVE_CONFIRM_MS);
     prefs.end();
     tlog("[NVS] factor=%.4f  offset=%ld  samples=%d",
                   calibration_factor, calibration_offset, num_samples);
@@ -41,6 +42,7 @@ void saveSettings() {
     prefs.putUInt( "v_dur",    valveOpenDurationMs);
     prefs.putUInt( "v_cool",   valveCooldownMs);
     prefs.putUInt( "b_confirm", cowGoneConfirmMs);
+    prefs.putUInt( "b_arrive",  cowArriveConfirmMs);
     prefs.end();
     tlog("[NVS] Settings saved.");
 }

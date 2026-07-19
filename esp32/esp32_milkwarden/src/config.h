@@ -37,6 +37,7 @@ static const uint8_t MASTER_MAC[6] = {
 #define RFID_SCAN_COUNT             10         // total scans per batch; most-frequent tag wins
 #define RFID_START_DELAY_MS         10000U     // delay after cow detected before RFID starts
 #define COW_GONE_CONFIRM_MS         5000U      // beam must stay clear this long before "cow left" fires
+#define COW_ARRIVE_CONFIRM_MS       2000U      // beam must stay blocked this long before "cow arrived" fires
 #define WEIGHT_DROP_G               10000.0f   // 10 kg drop threshold
 #define WEIGHT_DROP_WINDOW_MS       3000U      // detection window
 #define SNAPSHOT_INTERVAL_MS        500U
