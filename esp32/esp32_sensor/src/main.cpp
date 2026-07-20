@@ -71,13 +71,21 @@ static float milkVolumeLiters(uint16_t distMm) {
 
 static volatile uint32_t s_pulseCount = 0;
 static volatile bool     s_counting   = false;
+static uint32_t          s_lastOpenMs = 0;  // when reed last opened
 
 // Called immediately after light sleep returns — pin still LOW from reed closure
 static void onWakeReed() {
     if (!s_counting || digitalRead(REED_PIN) != LOW) return;
-    s_pulseCount++;
+
+    // Count only if reed was open for at least 1 second (float really moved away)
+    if (s_lastOpenMs == 0 || millis() - s_lastOpenMs >= 1000) {
+        s_pulseCount++;
+    }
+
+    // Wait for reed to open, record the open time
     uint32_t t = millis();
     while (digitalRead(REED_PIN) == LOW && millis() - t < 200) delay(2);
+    s_lastOpenMs = millis();
     delay(REED_DEBOUNCE_MS);
 }
 
@@ -225,6 +233,7 @@ static void processCmd(uint8_t cmd) {
 
     if (cmd == CMD_MEASURE_INIT) {
         s_pulseCount = 0;
+        s_lastOpenMs = 0;
         s_counting   = true;
         Serial.println("[CMD] INIT → counting started");
         sendResult(0, cmd);
